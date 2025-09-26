@@ -248,6 +248,35 @@ function RoutePlanning({ stops, updateStopStatus, removeStop }: RoutePlanningPro
   const pendingStops = stops.filter((s) => s.status === "pending")
   const completedStops = stops.filter((s) => s.status === "done")
 
+  const MapPlaceholder = () => (
+    <div
+      style={{
+        width: "100%",
+        height: "400px",
+        borderRadius: "12px",
+        overflow: "hidden",
+        boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+        color: "white",
+        textAlign: "center",
+        padding: "20px",
+      }}
+    >
+      <div style={{ maxWidth: "300px" }}>
+        <div style={{ fontSize: "48px", marginBottom: "16px" }}>🗺️</div>
+        <h3 style={{ margin: "0 0 8px 0", fontSize: "18px", fontWeight: "600" }}>Route Map</h3>
+        <p style={{ margin: "0", fontSize: "14px", opacity: "0.9", lineHeight: "1.4" }}>
+          Showing {stops.length} delivery stops
+          <br />
+          Map visualization will load with Google Maps API
+        </p>
+      </div>
+    </div>
+  )
+
   return (
     <div className="space-y-6 p-6">
       <div className="text-center">
@@ -292,6 +321,18 @@ function RoutePlanning({ stops, updateStopStatus, removeStop }: RoutePlanningPro
           </CardContent>
         </Card>
       </div>
+
+      {stops.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Route Map</CardTitle>
+            <CardDescription>Visual overview of your delivery stops</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <MapPlaceholder />
+          </CardContent>
+        </Card>
+      )}
 
       {stops.length > 0 && (
         <Card>
