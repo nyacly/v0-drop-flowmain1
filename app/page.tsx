@@ -52,6 +52,7 @@ function useStops() {
   })
 
   const addStop = (address: string) => {
+    console.log("[v0] Adding stop:", address)
     const newStop: Stop = {
       id: Date.now().toString(),
       address,
@@ -62,9 +63,11 @@ function useStops() {
     if (typeof window !== "undefined") {
       localStorage.setItem("dropflow-stops", JSON.stringify(newStops))
     }
+    console.log("[v0] Stop added, total stops:", newStops.length)
   }
 
   const removeStop = (id: string) => {
+    console.log("[v0] Removing stop:", id)
     const newStops = stops.filter((s) => s.id !== id)
     setStops(newStops)
     if (typeof window !== "undefined") {
@@ -73,6 +76,7 @@ function useStops() {
   }
 
   const updateStopStatus = (id: string, status: Stop["status"]) => {
+    console.log("[v0] Updating stop status:", id, status)
     const newStops = stops.map((s) => (s.id === id ? { ...s, status } : s))
     setStops(newStops)
     if (typeof window !== "undefined") {
@@ -83,13 +87,17 @@ function useStops() {
   return { stops, addStop, removeStop, updateStopStatus }
 }
 
-// Address Import Component
-function AddressImport({ onImportComplete }: { onImportComplete: () => void }) {
+interface AddressImportProps {
+  onImportComplete: () => void
+  stops: Stop[]
+  addStop: (address: string) => void
+  user: User | null
+}
+
+function AddressImport({ onImportComplete, stops, addStop, user }: AddressImportProps) {
   const [singleAddress, setSingleAddress] = useState("")
   const [bulkAddresses, setBulkAddresses] = useState("")
   const [isImporting, setIsImporting] = useState(false)
-  const { stops, addStop } = useStops()
-  const { user } = useAuth()
 
   const FREE_LIMIT = 10
   const canAddMore = user?.isPremium || stops.length < FREE_LIMIT
@@ -97,22 +105,27 @@ function AddressImport({ onImportComplete }: { onImportComplete: () => void }) {
   const handleSingleImport = async () => {
     if (!singleAddress.trim() || !canAddMore) return
 
+    console.log("[v0] Starting single import:", singleAddress)
     setIsImporting(true)
     // Simulate API delay
     await new Promise((resolve) => setTimeout(resolve, 500))
     addStop(singleAddress.trim())
     setSingleAddress("")
     setIsImporting(false)
+    console.log("[v0] Single import completed")
   }
 
   const handleBulkImport = async () => {
     if (!bulkAddresses.trim() || !canAddMore) return
 
+    console.log("[v0] Starting bulk import")
     setIsImporting(true)
     const addresses = bulkAddresses
       .split("\n")
       .map((addr) => addr.trim())
       .filter((addr) => addr.length > 0)
+
+    console.log("[v0] Parsed addresses:", addresses)
 
     // Check if bulk import would exceed limit
     const totalAfterImport = stops.length + addresses.length
@@ -131,6 +144,7 @@ function AddressImport({ onImportComplete }: { onImportComplete: () => void }) {
     setBulkAddresses("")
     setIsImporting(false)
     onImportComplete()
+    console.log("[v0] Bulk import completed")
   }
 
   return (
@@ -208,13 +222,18 @@ function AddressImport({ onImportComplete }: { onImportComplete: () => void }) {
   )
 }
 
-// Route Planning Component
-function RoutePlanning() {
-  const { stops, updateStopStatus, removeStop } = useStops()
+interface RoutePlanningProps {
+  stops: Stop[]
+  updateStopStatus: (id: string, status: Stop["status"]) => void
+  removeStop: (id: string) => void
+}
+
+function RoutePlanning({ stops, updateStopStatus, removeStop }: RoutePlanningProps) {
   const [isOptimizing, setIsOptimizing] = useState(false)
   const [optimizedRoute, setOptimizedRoute] = useState<Stop[]>([])
 
   const optimizeRoute = async () => {
+    console.log("[v0] Starting route optimization")
     setIsOptimizing(true)
     // Simulate route optimization
     await new Promise((resolve) => setTimeout(resolve, 2000))
@@ -223,6 +242,7 @@ function RoutePlanning() {
     const optimized = [...stops].sort((a, b) => a.address.localeCompare(b.address))
     setOptimizedRoute(optimized)
     setIsOptimizing(false)
+    console.log("[v0] Route optimization completed")
   }
 
   const pendingStops = stops.filter((s) => s.status === "pending")
@@ -319,9 +339,11 @@ function RoutePlanning() {
 // Main App Component
 export default function DropFlowApp() {
   const { user } = useAuth()
-  const { stops } = useStops()
+  const { stops, addStop, removeStop, updateStopStatus } = useStops()
   const [showAddressImport, setShowAddressImport] = useState(false)
   const [currentView, setCurrentView] = useState<"home" | "plan">("home")
+
+  console.log("[v0] App render - stops count:", stops.length)
 
   const handleStartRoute = () => {
     if (stops.length === 0) {
@@ -349,7 +371,7 @@ export default function DropFlowApp() {
             <h1 className="text-2xl font-bold">🚛 DropFlow</h1>
             <div></div>
           </div>
-          <RoutePlanning />
+          <RoutePlanning stops={stops} updateStopStatus={updateStopStatus} removeStop={removeStop} />
         </div>
       </div>
     )
@@ -392,7 +414,7 @@ export default function DropFlowApp() {
                     <DialogTitle>Address Management</DialogTitle>
                     <DialogDescription>Add or remove delivery addresses from your route</DialogDescription>
                   </DialogHeader>
-                  <AddressImport onImportComplete={handleImportComplete} />
+                  <AddressImport onImportComplete={handleImportComplete} stops={stops} addStop={addStop} user={user} />
                 </DialogContent>
               </Dialog>
             )}
@@ -496,7 +518,7 @@ export default function DropFlowApp() {
               <DialogTitle>Import Delivery Addresses</DialogTitle>
               <DialogDescription>Add addresses to your delivery route</DialogDescription>
             </DialogHeader>
-            <AddressImport onImportComplete={handleImportComplete} />
+            <AddressImport onImportComplete={handleImportComplete} stops={stops} addStop={addStop} user={user} />
           </DialogContent>
         </Dialog>
       </div>
