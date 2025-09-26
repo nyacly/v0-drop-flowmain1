@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -16,6 +16,12 @@ import {
 } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { MapPin, CheckCircle, Clock, Plus, AlertCircle } from "lucide-react"
+
+declare global {
+  interface Window {
+    google: any
+  }
+}
 
 // Mock data and types
 interface Stop {
@@ -228,6 +234,141 @@ interface RoutePlanningProps {
   removeStop: (id: string) => void
 }
 
+function GoogleMap({ stops }: { stops: Stop[] }) {
+  const [map, setMap] = useState<any>(null)
+  const [isLoaded, setIsLoaded] = useState(false)
+
+  useEffect(() => {
+    // Load Google Maps API
+    if (!window.google) {
+      const script = document.createElement("script")
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || process.env.GOOGLE_MAPS_API_KEY}&libraries=places`
+      script.async = true
+      script.defer = true
+      script.onload = () => setIsLoaded(true)
+      document.head.appendChild(script)
+    } else {
+      setIsLoaded(true)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (isLoaded && !map) {
+      // Initialize map centered on Brisbane, Australia
+      const mapInstance = new window.google.maps.Map(document.getElementById("google-map")!, {
+        center: { lat: -27.4698, lng: 153.0251 }, // Brisbane coordinates
+        zoom: 11,
+        styles: [
+          {
+            featureType: "poi",
+            elementType: "labels",
+            stylers: [{ visibility: "off" }],
+          },
+        ],
+      })
+      setMap(mapInstance)
+    }
+  }, [isLoaded, map])
+
+  useEffect(() => {
+    if (map && stops.length > 0) {
+      // Clear existing markers
+      // Add markers for each stop
+      const bounds = new window.google.maps.LatLngBounds()
+
+      stops.forEach((stop, index) => {
+        // Use geocoding to get coordinates for the address
+        const geocoder = new window.google.maps.Geocoder()
+        geocoder.geocode({ address: stop.address }, (results: any, status: string) => {
+          if (status === "OK" && results?.[0]) {
+            const position = results[0].geometry.location
+
+            // Create custom marker
+            const marker = new window.google.maps.Marker({
+              position: position,
+              map: map,
+              title: stop.address,
+              label: {
+                text: (index + 1).toString(),
+                color: "white",
+                fontWeight: "bold",
+              },
+              icon: {
+                path: window.google.maps.SymbolPath.CIRCLE,
+                scale: 20,
+                fillColor: stop.status === "done" ? "#22c55e" : "#ef4444",
+                fillOpacity: 1,
+                strokeColor: "white",
+                strokeWeight: 2,
+              },
+            })
+
+            // Add info window
+            const infoWindow = new window.google.maps.InfoWindow({
+              content: `
+                <div style="padding: 8px;">
+                  <strong>Stop ${index + 1}</strong><br/>
+                  ${stop.address}<br/>
+                  <span style="color: ${stop.status === "done" ? "#22c55e" : "#ef4444"};">
+                    ${stop.status === "done" ? "✓ Completed" : "⏳ Pending"}
+                  </span>
+                </div>
+              `,
+            })
+
+            marker.addListener("click", () => {
+              infoWindow.open(map, marker)
+            })
+
+            bounds.extend(position)
+          }
+        })
+      })
+
+      // Fit map to show all markers
+      if (stops.length > 1) {
+        setTimeout(() => map.fitBounds(bounds), 1000)
+      }
+    }
+  }, [map, stops])
+
+  if (!isLoaded) {
+    return (
+      <div
+        style={{
+          width: "100%",
+          height: "400px",
+          borderRadius: "12px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+          color: "white",
+          textAlign: "center",
+        }}
+      >
+        <div>
+          <div style={{ fontSize: "24px", marginBottom: "8px" }}>🗺️</div>
+          <p>Loading Google Maps...</p>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div
+      id="google-map"
+      style={{
+        width: "100%",
+        height: "400px",
+        borderRadius: "12px",
+        overflow: "hidden",
+        boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+      }}
+    />
+  )
+}
+
 function RoutePlanning({ stops, updateStopStatus, removeStop }: RoutePlanningProps) {
   const [isOptimizing, setIsOptimizing] = useState(false)
   const [optimizedRoute, setOptimizedRoute] = useState<Stop[]>([])
@@ -247,35 +388,6 @@ function RoutePlanning({ stops, updateStopStatus, removeStop }: RoutePlanningPro
 
   const pendingStops = stops.filter((s) => s.status === "pending")
   const completedStops = stops.filter((s) => s.status === "done")
-
-  const MapPlaceholder = () => (
-    <div
-      style={{
-        width: "100%",
-        height: "400px",
-        borderRadius: "12px",
-        overflow: "hidden",
-        boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-        color: "white",
-        textAlign: "center",
-        padding: "20px",
-      }}
-    >
-      <div style={{ maxWidth: "300px" }}>
-        <div style={{ fontSize: "48px", marginBottom: "16px" }}>🗺️</div>
-        <h3 style={{ margin: "0 0 8px 0", fontSize: "18px", fontWeight: "600" }}>Route Map</h3>
-        <p style={{ margin: "0", fontSize: "14px", opacity: "0.9", lineHeight: "1.4" }}>
-          Showing {stops.length} delivery stops
-          <br />
-          Map visualization will load with Google Maps API
-        </p>
-      </div>
-    </div>
-  )
 
   return (
     <div className="space-y-6 p-6">
@@ -329,7 +441,7 @@ function RoutePlanning({ stops, updateStopStatus, removeStop }: RoutePlanningPro
             <CardDescription>Visual overview of your delivery stops</CardDescription>
           </CardHeader>
           <CardContent>
-            <MapPlaceholder />
+            <GoogleMap stops={stops} />
           </CardContent>
         </Card>
       )}
