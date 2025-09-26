@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -234,205 +234,85 @@ interface RoutePlanningProps {
   removeStop: (id: string) => void
 }
 
-function LeafletMap({ stops }: { stops: Stop[] }) {
-  const mapRef = useRef<HTMLDivElement>(null)
-  const mapInstanceRef = useRef<any>(null)
-  const markersRef = useRef<any[]>([])
-  const [isLoaded, setIsLoaded] = useState(false)
-  const [mapReady, setMapReady] = useState(false)
-
-  console.log("[v0] LeafletMap render - stops:", stops.length, "isLoaded:", isLoaded, "mapReady:", mapReady)
-
-  // Load Leaflet CSS and JS
-  useEffect(() => {
-    if (typeof window === "undefined") return
-
-    console.log("[v0] Loading Leaflet resources...")
-
-    // Load Leaflet CSS
-    if (!document.querySelector('link[href*="leaflet"]')) {
-      const link = document.createElement("link")
-      link.rel = "stylesheet"
-      link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-      document.head.appendChild(link)
-      console.log("[v0] Leaflet CSS loaded")
-    }
-
-    // Load Leaflet JS
-    if (!window.L) {
-      const script = document.createElement("script")
-      script.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-      script.onload = () => {
-        console.log("[v0] Leaflet JS loaded")
-        setIsLoaded(true)
-      }
-      script.onerror = () => {
-        console.error("[v0] Failed to load Leaflet JS")
-      }
-      document.head.appendChild(script)
-    } else {
-      console.log("[v0] Leaflet already available")
-      setIsLoaded(true)
-    }
-  }, [])
-
-  // Initialize map
-  useEffect(() => {
-    if (!isLoaded || !mapRef.current || mapInstanceRef.current) return
-
-    console.log("[v0] Initializing map...")
-    try {
-      // Initialize map centered on Brisbane, Australia
-      const map = window.L.map(mapRef.current).setView([-27.4698, 153.0251], 11)
-
-      // Add OpenStreetMap tiles
-      window.L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-      }).addTo(map)
-
-      mapInstanceRef.current = map
-      setMapReady(true)
-      console.log("[v0] Map initialized successfully")
-    } catch (error) {
-      console.error("[v0] Map initialization error:", error)
-    }
-  }, [isLoaded])
-
-  // Add markers for stops
-  useEffect(() => {
-    if (!mapReady || !mapInstanceRef.current || !window.L || stops.length === 0) {
-      console.log("[v0] Skipping markers - mapReady:", mapReady, "stops:", stops.length)
-      return
-    }
-
-    console.log("[v0] Adding markers for", stops.length, "stops")
-
-    // Clear existing markers
-    markersRef.current.forEach((marker) => {
-      mapInstanceRef.current.removeLayer(marker)
-    })
-    markersRef.current = []
-
-    const bounds = window.L.latLngBounds()
-    let markersAdded = 0
-
-    // Add markers for each stop
-    stops.forEach(async (stop, index) => {
-      try {
-        console.log("[v0] Geocoding address:", stop.address)
-
-        // Use Nominatim geocoding service
-        const response = await fetch(
-          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(stop.address)}&limit=1&countrycodes=au`,
-        )
-        const data = await response.json()
-
-        if (data && data.length > 0) {
-          const lat = Number.parseFloat(data[0].lat)
-          const lng = Number.parseFloat(data[0].lon)
-
-          console.log("[v0] Geocoded", stop.address, "to", lat, lng)
-
-          // Create custom marker icon
-          const markerColor = stop.status === "done" ? "#22c55e" : "#ef4444"
-          const customIcon = window.L.divIcon({
-            html: `
-              <div style="
-                background-color: ${markerColor};
-                color: white;
-                border-radius: 50%;
-                width: 30px;
-                height: 30px;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                font-weight: bold;
-                font-size: 14px;
-                border: 2px solid white;
-                box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-              ">
-                ${index + 1}
-              </div>
-            `,
-            className: "custom-div-icon",
-            iconSize: [30, 30],
-            iconAnchor: [15, 15],
-          })
-
-          const marker = window.L.marker([lat, lng], { icon: customIcon }).addTo(mapInstanceRef.current)
-
-          // Add popup
-          marker.bindPopup(`
-            <div style="padding: 8px; min-width: 200px;">
-              <strong>Stop ${index + 1}</strong><br/>
-              ${stop.address}<br/>
-              <span style="color: ${markerColor}; font-weight: bold;">
-                ${stop.status === "done" ? "✓ Completed" : "⏳ Pending"}
-              </span>
-            </div>
-          `)
-
-          markersRef.current.push(marker)
-          bounds.extend([lat, lng])
-          markersAdded++
-
-          console.log("[v0] Added marker", index + 1, "at", lat, lng)
-
-          // Fit map to show all markers when all are added
-          if (markersAdded === stops.length && markersAdded > 0) {
-            setTimeout(() => {
-              console.log("[v0] Fitting map to bounds")
-              mapInstanceRef.current.fitBounds(bounds, { padding: [20, 20] })
-            }, 500)
-          }
-        } else {
-          console.warn("[v0] No geocoding results for:", stop.address)
-        }
-      } catch (error) {
-        console.error("[v0] Geocoding error for address:", stop.address, error)
-      }
-    })
-  }, [stops, mapReady])
-
-  if (!isLoaded || !mapReady) {
-    return (
-      <div
-        style={{
-          width: "100%",
-          height: "400px",
-          borderRadius: "12px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-          color: "white",
-          textAlign: "center",
-        }}
-      >
-        <div>
-          <div style={{ fontSize: "48px", marginBottom: "16px" }}>🗺️</div>
-          <h3 style={{ margin: "0 0 8px 0", fontSize: "18px", fontWeight: "600" }}>
-            {!isLoaded ? "Loading Map..." : "Initializing Map..."}
-          </h3>
-          <p style={{ margin: "0", fontSize: "14px", opacity: 0.9 }}>
-            Preparing {stops.length} delivery stop{stops.length !== 1 ? "s" : ""}
-          </p>
-        </div>
-      </div>
-    )
-  }
+function SimpleMapView({ stops }: { stops: Stop[] }) {
+  const pendingStops = stops.filter((s) => s.status === "pending")
+  const completedStops = stops.filter((s) => s.status === "done")
 
   return (
     <div
-      ref={mapRef}
       style={{
         width: "100%",
         height: "400px",
         borderRadius: "12px",
+        background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        color: "white",
+        textAlign: "center",
+        position: "relative",
         overflow: "hidden",
-        boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
       }}
-    />
+    >
+      {/* Background pattern */}
+      <div
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundImage: `
+            radial-gradient(circle at 20% 20%, rgba(255,255,255,0.1) 1px, transparent 1px),
+            radial-gradient(circle at 80% 80%, rgba(255,255,255,0.1) 1px, transparent 1px),
+            radial-gradient(circle at 40% 60%, rgba(255,255,255,0.05) 2px, transparent 2px)
+          `,
+          backgroundSize: "50px 50px, 30px 30px, 70px 70px",
+        }}
+      />
+
+      {/* Content */}
+      <div style={{ position: "relative", zIndex: 1 }}>
+        <div style={{ fontSize: "48px", marginBottom: "16px" }}>🗺️</div>
+        <h3 style={{ margin: "0 0 8px 0", fontSize: "20px", fontWeight: "600" }}>Route Overview</h3>
+        <p style={{ margin: "0 0 16px 0", fontSize: "14px", opacity: 0.9 }}>
+          {stops.length} delivery stop{stops.length !== 1 ? "s" : ""} ready for optimization
+        </p>
+
+        {/* Stop indicators */}
+        <div style={{ display: "flex", gap: "16px", justifyContent: "center", flexWrap: "wrap" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <div
+              style={{
+                width: "12px",
+                height: "12px",
+                borderRadius: "50%",
+                backgroundColor: "#ef4444",
+              }}
+            />
+            <span style={{ fontSize: "14px" }}>{pendingStops.length} Pending</span>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <div
+              style={{
+                width: "12px",
+                height: "12px",
+                borderRadius: "50%",
+                backgroundColor: "#22c55e",
+              }}
+            />
+            <span style={{ fontSize: "14px" }}>{completedStops.length} Completed</span>
+          </div>
+        </div>
+
+        {stops.length > 0 && (
+          <div style={{ marginTop: "16px", fontSize: "12px", opacity: 0.8 }}>
+            Interactive map will load with proper mapping service
+          </div>
+        )}
+      </div>
+    </div>
   )
 }
 
@@ -505,10 +385,10 @@ function RoutePlanning({ stops, updateStopStatus, removeStop }: RoutePlanningPro
         <Card>
           <CardHeader>
             <CardTitle>Route Map</CardTitle>
-            <CardDescription>Interactive map showing your delivery stops</CardDescription>
+            <CardDescription>Visual overview of your delivery stops</CardDescription>
           </CardHeader>
           <CardContent>
-            <LeafletMap stops={stops} />
+            <SimpleMapView stops={stops} />
           </CardContent>
         </Card>
       )}
