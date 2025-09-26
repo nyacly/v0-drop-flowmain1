@@ -17,12 +17,6 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { MapPin, CheckCircle, Clock, Plus, AlertCircle } from "lucide-react"
 
-declare global {
-  interface Window {
-    L: any
-  }
-}
-
 // Mock data and types
 interface Stop {
   id: string
@@ -58,7 +52,6 @@ function useStops() {
   })
 
   const addStop = (address: string) => {
-    console.log("[v0] Adding stop:", address)
     const newStop: Stop = {
       id: Date.now().toString(),
       address,
@@ -69,11 +62,9 @@ function useStops() {
     if (typeof window !== "undefined") {
       localStorage.setItem("dropflow-stops", JSON.stringify(newStops))
     }
-    console.log("[v0] Stop added, total stops:", newStops.length)
   }
 
   const removeStop = (id: string) => {
-    console.log("[v0] Removing stop:", id)
     const newStops = stops.filter((s) => s.id !== id)
     setStops(newStops)
     if (typeof window !== "undefined") {
@@ -82,7 +73,6 @@ function useStops() {
   }
 
   const updateStopStatus = (id: string, status: Stop["status"]) => {
-    console.log("[v0] Updating stop status:", id, status)
     const newStops = stops.map((s) => (s.id === id ? { ...s, status } : s))
     setStops(newStops)
     if (typeof window !== "undefined") {
@@ -111,29 +101,22 @@ function AddressImport({ onImportComplete, stops, addStop, user }: AddressImport
   const handleSingleImport = async () => {
     if (!singleAddress.trim() || !canAddMore) return
 
-    console.log("[v0] Starting single import:", singleAddress)
     setIsImporting(true)
-    // Simulate API delay
     await new Promise((resolve) => setTimeout(resolve, 500))
     addStop(singleAddress.trim())
     setSingleAddress("")
     setIsImporting(false)
-    console.log("[v0] Single import completed")
   }
 
   const handleBulkImport = async () => {
     if (!bulkAddresses.trim() || !canAddMore) return
 
-    console.log("[v0] Starting bulk import")
     setIsImporting(true)
     const addresses = bulkAddresses
       .split("\n")
       .map((addr) => addr.trim())
       .filter((addr) => addr.length > 0)
 
-    console.log("[v0] Parsed addresses:", addresses)
-
-    // Check if bulk import would exceed limit
     const totalAfterImport = stops.length + addresses.length
     if (!user?.isPremium && totalAfterImport > FREE_LIMIT) {
       alert(
@@ -143,14 +126,12 @@ function AddressImport({ onImportComplete, stops, addStop, user }: AddressImport
       return
     }
 
-    // Simulate API delay
     await new Promise((resolve) => setTimeout(resolve, 1000))
 
     addresses.forEach((address) => addStop(address))
     setBulkAddresses("")
     setIsImporting(false)
     onImportComplete()
-    console.log("[v0] Bulk import completed")
   }
 
   return (
@@ -238,207 +219,258 @@ function SimpleMapView({ stops }: { stops: Stop[] }) {
   const pendingStops = stops.filter((s) => s.status === "pending")
   const completedStops = stops.filter((s) => s.status === "done")
 
+  const openInGoogleMaps = () => {
+    const addresses = stops.map((stop) => encodeURIComponent(stop.address))
+    if (addresses.length === 1) {
+      window.open(`https://www.google.com/maps/dir/?api=1&destination=${addresses[0]}`, "_blank")
+    } else {
+      const waypoints = addresses.slice(1).join("|")
+      window.open(`https://www.google.com/maps/dir/?api=1&destination=${addresses[0]}&waypoints=${waypoints}`, "_blank")
+    }
+  }
+
+  const openInAppleMaps = () => {
+    const addresses = stops.map((stop) => encodeURIComponent(stop.address))
+    if (addresses.length === 1) {
+      window.open(`http://maps.apple.com/?daddr=${addresses[0]}`, "_blank")
+    } else {
+      window.open(`http://maps.apple.com/?daddr=${addresses[0]}`, "_blank")
+    }
+  }
+
+  const openInWaze = () => {
+    const firstAddress = encodeURIComponent(stops[0]?.address || "")
+    window.open(`https://waze.com/ul?q=${firstAddress}&navigate=yes`, "_blank")
+  }
+
   return (
-    <div
-      style={{
-        width: "100%",
-        height: "400px",
-        borderRadius: "12px",
-        background: "#f0f9ff",
-        border: "1px solid #e2e8f0",
-        position: "relative",
-        overflow: "hidden",
-      }}
-    >
-      {/* SVG Map */}
-      <svg width="100%" height="100%" viewBox="0 0 800 400" style={{ position: "absolute", top: 0, left: 0 }}>
-        <defs>
-          {/* Water pattern */}
-          <pattern id="water" width="20" height="20" patternUnits="userSpaceOnUse">
-            <rect width="20" height="20" fill="#bfdbfe" />
-            <path d="M 0 10 Q 5 5 10 10 T 20 10" stroke="#93c5fd" strokeWidth="0.5" fill="none" />
-          </pattern>
-          {/* Park pattern */}
-          <pattern id="park" width="15" height="15" patternUnits="userSpaceOnUse">
-            <rect width="15" height="15" fill="#dcfce7" />
-            <circle cx="7.5" cy="7.5" r="2" fill="#22c55e" opacity="0.3" />
-          </pattern>
-        </defs>
+    <div className="space-y-4">
+      {/* Navigation buttons */}
+      {stops.length > 0 && (
+        <div className="flex flex-wrap gap-2 mb-4">
+          <Button onClick={openInGoogleMaps} className="flex items-center gap-2 bg-transparent" variant="outline">
+            <span>🗺️</span>
+            Navigate with Google Maps
+          </Button>
+          <Button onClick={openInAppleMaps} className="flex items-center gap-2 bg-transparent" variant="outline">
+            <span>🍎</span>
+            Navigate with Apple Maps
+          </Button>
+          <Button onClick={openInWaze} className="flex items-center gap-2 bg-transparent" variant="outline">
+            <span>🚗</span>
+            Navigate with Waze
+          </Button>
+        </div>
+      )}
 
-        {/* Map background */}
-        <rect width="100%" height="100%" fill="#f8fafc" />
-
-        {/* Water bodies (river/lake) */}
-        <path d="M 0 150 Q 200 120 400 140 T 800 160 L 800 200 Q 600 180 400 190 T 0 210 Z" fill="url(#water)" />
-
-        {/* Parks and green spaces */}
-        <rect x="50" y="50" width="120" height="80" rx="8" fill="url(#park)" />
-        <rect x="600" y="250" width="140" height="100" rx="8" fill="url(#park)" />
-        <circle cx="300" cy="300" r="40" fill="url(#park)" />
-
-        {/* Major roads */}
-        <g stroke="#6b7280" strokeWidth="4" fill="none" opacity="0.8">
-          <path d="M 0 100 L 800 100" />
-          <path d="M 0 250 L 800 250" />
-          <path d="M 200 0 L 200 400" />
-          <path d="M 500 0 L 500 400" />
-        </g>
-
-        {/* Secondary streets */}
-        <g stroke="#9ca3af" strokeWidth="2" fill="none" opacity="0.6">
-          <path d="M 0 75 L 800 75" />
-          <path d="M 0 125 L 800 125" />
-          <path d="M 0 175 L 800 175" />
-          <path d="M 0 225 L 800 225" />
-          <path d="M 0 275 L 800 275" />
-          <path d="M 0 325 L 800 325" />
-          <path d="M 100 0 L 100 400" />
-          <path d="M 300 0 L 300 400" />
-          <path d="M 400 0 L 400 400" />
-          <path d="M 600 0 L 600 400" />
-          <path d="M 700 0 L 700 400" />
-        </g>
-
-        {/* Street names */}
-        <g fill="#4b5563" fontSize="10" fontFamily="Arial, sans-serif">
-          <text x="10" y="95" transform="rotate(0)">
-            Main Street
-          </text>
-          <text x="10" y="245" transform="rotate(0)">
-            Oak Avenue
-          </text>
-          <text x="205" y="20" transform="rotate(-90)">
-            First Street
-          </text>
-          <text x="505" y="20" transform="rotate(-90)">
-            Broadway
-          </text>
-          <text x="10" y="170" fontSize="8">
-            River Road
-          </text>
-          <text x="605" y="270" fontSize="8">
-            Central Park
-          </text>
-        </g>
-
-        {/* Buildings/blocks */}
-        <g fill="#e5e7eb" stroke="#d1d5db" strokeWidth="0.5">
-          <rect x="220" y="110" width="60" height="30" rx="2" />
-          <rect x="320" y="110" width="40" height="30" rx="2" />
-          <rect x="420" y="110" width="50" height="30" rx="2" />
-          <rect x="220" y="260" width="70" height="40" rx="2" />
-          <rect x="320" y="260" width="45" height="40" rx="2" />
-          <rect x="420" y="260" width="55" height="40" rx="2" />
-        </g>
-
-        {/* Delivery stop markers */}
-        {stops.map((stop, index) => {
-          const x = 150 + ((index * 120) % 500)
-          const y = 120 + Math.floor(index / 4) * 80
-          const isCompleted = stop.status === "done"
-
-          return (
-            <g key={stop.id}>
-              {/* Marker shadow */}
-              <circle cx={x + 2} cy={y + 2} r="18" fill="rgba(0,0,0,0.3)" />
-              {/* Marker background */}
-              <circle cx={x} cy={y} r="18" fill={isCompleted ? "#22c55e" : "#ef4444"} stroke="white" strokeWidth="3" />
-              {/* Marker inner circle */}
-              <circle cx={x} cy={y} r="14" fill={isCompleted ? "#16a34a" : "#dc2626"} />
-              {/* Marker number */}
-              <text
-                x={x}
-                y={y + 1}
-                textAnchor="middle"
-                dominantBaseline="middle"
-                fill="white"
-                fontSize="12"
-                fontWeight="bold"
-              >
-                {index + 1}
-              </text>
-              {/* Connecting line to next stop */}
-              {index < stops.length - 1 && (
-                <line
-                  x1={x}
-                  y1={y}
-                  x2={150 + (((index + 1) * 120) % 500)}
-                  y2={120 + Math.floor((index + 1) / 4) * 80}
-                  stroke="#6366f1"
-                  strokeWidth="3"
-                  strokeDasharray="8,4"
-                  opacity="0.8"
-                />
-              )}
-            </g>
-          )
-        })}
-
-        {/* Compass rose */}
-        <g transform="translate(720, 60)">
-          <circle cx="0" cy="0" r="25" fill="white" stroke="#d1d5db" strokeWidth="1" />
-          <path d="M 0 -20 L 5 -5 L 0 0 L -5 -5 Z" fill="#ef4444" />
-          <text x="0" y="-30" textAnchor="middle" fontSize="8" fill="#4b5563">
-            N
-          </text>
-        </g>
-      </svg>
-
-      {/* Map legend */}
       <div
         style={{
-          position: "absolute",
-          top: "16px",
-          left: "16px",
-          background: "white",
-          padding: "12px",
-          borderRadius: "8px",
-          boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
-          fontSize: "14px",
+          width: "100%",
+          height: "400px",
+          borderRadius: "12px",
+          background: "#f0f9ff",
+          border: "1px solid #e2e8f0",
+          position: "relative",
+          overflow: "hidden",
         }}
       >
-        <div style={{ fontWeight: "600", marginBottom: "8px" }}>Route Map</div>
-        <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <div
-              style={{
-                width: "12px",
-                height: "12px",
-                borderRadius: "50%",
-                backgroundColor: "#ef4444",
-              }}
-            />
-            <span>{pendingStops.length} Pending</span>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <div
-              style={{
-                width: "12px",
-                height: "12px",
-                borderRadius: "50%",
-                backgroundColor: "#22c55e",
-              }}
-            />
-            <span>{completedStops.length} Completed</span>
+        {/* SVG Map */}
+        <svg width="100%" height="100%" viewBox="0 0 800 400" style={{ position: "absolute", top: 0, left: 0 }}>
+          <defs>
+            {/* Water pattern */}
+            <pattern id="water" width="20" height="20" patternUnits="userSpaceOnUse">
+              <rect width="20" height="20" fill="#bfdbfe" />
+              <path d="M 0 10 Q 5 5 10 10 T 20 10" stroke="#93c5fd" strokeWidth="0.5" fill="none" />
+            </pattern>
+            {/* Park pattern */}
+            <pattern id="park" width="15" height="15" patternUnits="userSpaceOnUse">
+              <rect width="15" height="15" fill="#dcfce7" />
+              <circle cx="7.5" cy="7.5" r="2" fill="#22c55e" opacity="0.3" />
+            </pattern>
+          </defs>
+
+          {/* Map background */}
+          <rect width="100%" height="100%" fill="#f8fafc" />
+
+          {/* Water bodies (river/lake) */}
+          <path d="M 0 150 Q 200 120 400 140 T 800 160 L 800 200 Q 600 180 400 190 T 0 210 Z" fill="url(#water)" />
+
+          {/* Parks and green spaces */}
+          <rect x="50" y="50" width="120" height="80" rx="8" fill="url(#park)" />
+          <rect x="600" y="250" width="140" height="100" rx="8" fill="url(#park)" />
+          <circle cx="300" cy="300" r="40" fill="url(#park)" />
+
+          {/* Major roads */}
+          <g stroke="#6b7280" strokeWidth="4" fill="none" opacity="0.8">
+            <path d="M 0 100 L 800 100" />
+            <path d="M 0 250 L 800 250" />
+            <path d="M 200 0 L 200 400" />
+            <path d="M 500 0 L 500 400" />
+          </g>
+
+          {/* Secondary streets */}
+          <g stroke="#9ca3af" strokeWidth="2" fill="none" opacity="0.6">
+            <path d="M 0 75 L 800 75" />
+            <path d="M 0 125 L 800 125" />
+            <path d="M 0 175 L 800 175" />
+            <path d="M 0 225 L 800 225" />
+            <path d="M 0 275 L 800 275" />
+            <path d="M 0 325 L 800 325" />
+            <path d="M 100 0 L 100 400" />
+            <path d="M 300 0 L 300 400" />
+            <path d="M 400 0 L 400 400" />
+            <path d="M 600 0 L 600 400" />
+            <path d="M 700 0 L 700 400" />
+          </g>
+
+          {/* Street names */}
+          <g fill="#4b5563" fontSize="10" fontFamily="Arial, sans-serif">
+            <text x="10" y="95" transform="rotate(0)">
+              Main Street
+            </text>
+            <text x="10" y="245" transform="rotate(0)">
+              Oak Avenue
+            </text>
+            <text x="205" y="20" transform="rotate(-90)">
+              First Street
+            </text>
+            <text x="505" y="20" transform="rotate(-90)">
+              Broadway
+            </text>
+            <text x="10" y="170" fontSize="8">
+              River Road
+            </text>
+            <text x="605" y="270" fontSize="8">
+              Central Park
+            </text>
+          </g>
+
+          {/* Buildings/blocks */}
+          <g fill="#e5e7eb" stroke="#d1d5db" strokeWidth="0.5">
+            <rect x="220" y="110" width="60" height="30" rx="2" />
+            <rect x="320" y="110" width="40" height="30" rx="2" />
+            <rect x="420" y="110" width="50" height="30" rx="2" />
+            <rect x="220" y="260" width="70" height="40" rx="2" />
+            <rect x="320" y="260" width="45" height="40" rx="2" />
+            <rect x="420" y="260" width="55" height="40" rx="2" />
+          </g>
+
+          {/* Delivery stop markers */}
+          {stops.map((stop, index) => {
+            const x = 150 + ((index * 120) % 500)
+            const y = 120 + Math.floor(index / 4) * 80
+            const isCompleted = stop.status === "done"
+
+            return (
+              <g key={stop.id}>
+                {/* Marker shadow */}
+                <circle cx={x + 2} cy={y + 2} r="18" fill="rgba(0,0,0,0.3)" />
+                {/* Marker background */}
+                <circle
+                  cx={x}
+                  cy={y}
+                  r="18"
+                  fill={isCompleted ? "#22c55e" : "#ef4444"}
+                  stroke="white"
+                  strokeWidth="3"
+                />
+                {/* Marker inner circle */}
+                <circle cx={x} cy={y} r="14" fill={isCompleted ? "#16a34a" : "#dc2626"} />
+                {/* Marker number */}
+                <text
+                  x={x}
+                  y={y + 1}
+                  textAnchor="middle"
+                  dominantBaseline="middle"
+                  fill="white"
+                  fontSize="12"
+                  fontWeight="bold"
+                >
+                  {index + 1}
+                </text>
+                {/* Connecting line to next stop */}
+                {index < stops.length - 1 && (
+                  <line
+                    x1={x}
+                    y1={y}
+                    x2={150 + (((index + 1) * 120) % 500)}
+                    y2={120 + Math.floor((index + 1) / 4) * 80}
+                    stroke="#6366f1"
+                    strokeWidth="3"
+                    strokeDasharray="8,4"
+                    opacity="0.8"
+                  />
+                )}
+              </g>
+            )
+          })}
+
+          {/* Compass rose */}
+          <g transform="translate(720, 60)">
+            <circle cx="0" cy="0" r="25" fill="white" stroke="#d1d5db" strokeWidth="1" />
+            <path d="M 0 -20 L 5 -5 L 0 0 L -5 -5 Z" fill="#ef4444" />
+            <text x="0" y="-30" textAnchor="middle" fontSize="8" fill="#4b5563">
+              N
+            </text>
+          </g>
+        </svg>
+
+        {/* Map legend */}
+        <div
+          style={{
+            position: "absolute",
+            top: "16px",
+            left: "16px",
+            background: "white",
+            padding: "12px",
+            borderRadius: "8px",
+            boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+            fontSize: "14px",
+          }}
+        >
+          <div style={{ fontWeight: "600", marginBottom: "8px" }}>Route Map</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <div
+                style={{
+                  width: "12px",
+                  height: "12px",
+                  borderRadius: "50%",
+                  backgroundColor: "#ef4444",
+                }}
+              />
+              <span>{pendingStops.length} Pending</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <div
+                style={{
+                  width: "12px",
+                  height: "12px",
+                  borderRadius: "50%",
+                  backgroundColor: "#22c55e",
+                }}
+              />
+              <span>{completedStops.length} Completed</span>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Stop count indicator */}
-      <div
-        style={{
-          position: "absolute",
-          bottom: "16px",
-          right: "16px",
-          background: "#6366f1",
-          color: "white",
-          padding: "8px 12px",
-          borderRadius: "6px",
-          fontSize: "14px",
-          fontWeight: "600",
-        }}
-      >
-        {stops.length} Stop{stops.length !== 1 ? "s" : ""}
+        {/* Stop count indicator */}
+        <div
+          style={{
+            position: "absolute",
+            bottom: "16px",
+            right: "16px",
+            background: "#6366f1",
+            color: "white",
+            padding: "8px 12px",
+            borderRadius: "6px",
+            fontSize: "14px",
+            fontWeight: "600",
+          }}
+        >
+          {stops.length} Stop{stops.length !== 1 ? "s" : ""}
+        </div>
       </div>
     </div>
   )
@@ -449,16 +481,12 @@ function RoutePlanning({ stops, updateStopStatus, removeStop }: RoutePlanningPro
   const [optimizedRoute, setOptimizedRoute] = useState<Stop[]>([])
 
   const optimizeRoute = async () => {
-    console.log("[v0] Starting route optimization")
     setIsOptimizing(true)
-    // Simulate route optimization
     await new Promise((resolve) => setTimeout(resolve, 2000))
 
-    // Simple optimization: sort by address (in real app, this would use Google Maps API)
     const optimized = [...stops].sort((a, b) => a.address.localeCompare(b.address))
     setOptimizedRoute(optimized)
     setIsOptimizing(false)
-    console.log("[v0] Route optimization completed")
   }
 
   const pendingStops = stops.filter((s) => s.status === "pending")
@@ -513,7 +541,7 @@ function RoutePlanning({ stops, updateStopStatus, removeStop }: RoutePlanningPro
         <Card>
           <CardHeader>
             <CardTitle>Route Map</CardTitle>
-            <CardDescription>Visual overview of your delivery stops</CardDescription>
+            <CardDescription>Interactive map showing your delivery stops</CardDescription>
           </CardHeader>
           <CardContent>
             <SimpleMapView stops={stops} />
@@ -570,8 +598,6 @@ export default function DropFlowApp() {
   const { stops, addStop, removeStop, updateStopStatus } = useStops()
   const [showAddressImport, setShowAddressImport] = useState(false)
   const [currentView, setCurrentView] = useState<"home" | "plan">("home")
-
-  console.log("[v0] App render - stops count:", stops.length)
 
   const handleStartRoute = () => {
     if (stops.length === 0) {
