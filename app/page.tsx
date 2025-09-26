@@ -244,44 +244,89 @@ function SimpleMapView({ stops }: { stops: Stop[] }) {
         width: "100%",
         height: "400px",
         borderRadius: "12px",
-        background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        color: "white",
-        textAlign: "center",
+        background: "#f8fafc",
+        border: "1px solid #e2e8f0",
         position: "relative",
         overflow: "hidden",
       }}
     >
-      {/* Background pattern */}
+      {/* SVG Map */}
+      <svg width="100%" height="100%" viewBox="0 0 800 400" style={{ position: "absolute", top: 0, left: 0 }}>
+        {/* Background grid pattern */}
+        <defs>
+          <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+            <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#e2e8f0" strokeWidth="1" opacity="0.5" />
+          </pattern>
+        </defs>
+        <rect width="100%" height="100%" fill="url(#grid)" />
+
+        {/* Map roads/streets */}
+        <g stroke="#94a3b8" strokeWidth="2" fill="none">
+          <path d="M 50 100 L 750 100" />
+          <path d="M 50 200 L 750 200" />
+          <path d="M 50 300 L 750 300" />
+          <path d="M 200 50 L 200 350" />
+          <path d="M 400 50 L 400 350" />
+          <path d="M 600 50 L 600 350" />
+        </g>
+
+        {/* Delivery stop markers */}
+        {stops.map((stop, index) => {
+          const x = 150 + ((index * 120) % 500)
+          const y = 120 + Math.floor(index / 4) * 80
+          const isCompleted = stop.status === "done"
+
+          return (
+            <g key={stop.id}>
+              {/* Marker shadow */}
+              <circle cx={x + 2} cy={y + 2} r="16" fill="rgba(0,0,0,0.2)" />
+              {/* Marker background */}
+              <circle cx={x} cy={y} r="16" fill={isCompleted ? "#22c55e" : "#ef4444"} stroke="white" strokeWidth="3" />
+              {/* Marker number */}
+              <text
+                x={x}
+                y={y + 1}
+                textAnchor="middle"
+                dominantBaseline="middle"
+                fill="white"
+                fontSize="12"
+                fontWeight="bold"
+              >
+                {index + 1}
+              </text>
+              {/* Connecting line to next stop */}
+              {index < stops.length - 1 && (
+                <line
+                  x1={x}
+                  y1={y}
+                  x2={150 + (((index + 1) * 120) % 500)}
+                  y2={120 + Math.floor((index + 1) / 4) * 80}
+                  stroke="#6366f1"
+                  strokeWidth="2"
+                  strokeDasharray="5,5"
+                  opacity="0.6"
+                />
+              )}
+            </g>
+          )
+        })}
+      </svg>
+
+      {/* Map legend */}
       <div
         style={{
           position: "absolute",
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundImage: `
-            radial-gradient(circle at 20% 20%, rgba(255,255,255,0.1) 1px, transparent 1px),
-            radial-gradient(circle at 80% 80%, rgba(255,255,255,0.1) 1px, transparent 1px),
-            radial-gradient(circle at 40% 60%, rgba(255,255,255,0.05) 2px, transparent 2px)
-          `,
-          backgroundSize: "50px 50px, 30px 30px, 70px 70px",
+          top: "16px",
+          left: "16px",
+          background: "white",
+          padding: "12px",
+          borderRadius: "8px",
+          boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+          fontSize: "14px",
         }}
-      />
-
-      {/* Content */}
-      <div style={{ position: "relative", zIndex: 1 }}>
-        <div style={{ fontSize: "48px", marginBottom: "16px" }}>🗺️</div>
-        <h3 style={{ margin: "0 0 8px 0", fontSize: "20px", fontWeight: "600" }}>Route Overview</h3>
-        <p style={{ margin: "0 0 16px 0", fontSize: "14px", opacity: 0.9 }}>
-          {stops.length} delivery stop{stops.length !== 1 ? "s" : ""} ready for optimization
-        </p>
-
-        {/* Stop indicators */}
-        <div style={{ display: "flex", gap: "16px", justifyContent: "center", flexWrap: "wrap" }}>
+      >
+        <div style={{ fontWeight: "600", marginBottom: "8px" }}>Route Map</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
             <div
               style={{
@@ -291,7 +336,7 @@ function SimpleMapView({ stops }: { stops: Stop[] }) {
                 backgroundColor: "#ef4444",
               }}
             />
-            <span style={{ fontSize: "14px" }}>{pendingStops.length} Pending</span>
+            <span>{pendingStops.length} Pending</span>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
             <div
@@ -302,15 +347,26 @@ function SimpleMapView({ stops }: { stops: Stop[] }) {
                 backgroundColor: "#22c55e",
               }}
             />
-            <span style={{ fontSize: "14px" }}>{completedStops.length} Completed</span>
+            <span>{completedStops.length} Completed</span>
           </div>
         </div>
+      </div>
 
-        {stops.length > 0 && (
-          <div style={{ marginTop: "16px", fontSize: "12px", opacity: 0.8 }}>
-            Interactive map will load with proper mapping service
-          </div>
-        )}
+      {/* Stop count indicator */}
+      <div
+        style={{
+          position: "absolute",
+          bottom: "16px",
+          right: "16px",
+          background: "#6366f1",
+          color: "white",
+          padding: "8px 12px",
+          borderRadius: "6px",
+          fontSize: "14px",
+          fontWeight: "600",
+        }}
+      >
+        {stops.length} Stop{stops.length !== 1 ? "s" : ""}
       </div>
     </div>
   )
