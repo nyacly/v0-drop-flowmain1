@@ -239,14 +239,9 @@ function GoogleMap({ stops }: { stops: Stop[] }) {
   const [isLoaded, setIsLoaded] = useState(false)
 
   useEffect(() => {
-    // Load Google Maps API
     if (!window.google) {
-      const script = document.createElement("script")
-      script.src = `https://maps.googleapis.com/maps/api/js?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || process.env.GOOGLE_MAPS_API_KEY}&libraries=places`
-      script.async = true
-      script.defer = true
-      script.onload = () => setIsLoaded(true)
-      document.head.appendChild(script)
+      // For now, show a placeholder until server-side API key loading is implemented
+      setIsLoaded(false)
     } else {
       setIsLoaded(true)
     }
@@ -348,8 +343,14 @@ function GoogleMap({ stops }: { stops: Stop[] }) {
         }}
       >
         <div>
-          <div style={{ fontSize: "24px", marginBottom: "8px" }}>🗺️</div>
-          <p>Loading Google Maps...</p>
+          <div style={{ fontSize: "48px", marginBottom: "16px" }}>🗺️</div>
+          <h3 style={{ margin: "0 0 8px 0", fontSize: "18px", fontWeight: "600" }}>Route Map</h3>
+          <p style={{ margin: "0", fontSize: "14px", opacity: 0.9 }}>
+            Showing {stops.length} delivery stop{stops.length !== 1 ? "s" : ""}
+          </p>
+          <p style={{ margin: "8px 0 0 0", fontSize: "12px", opacity: 0.7 }}>
+            Map visualization requires server-side configuration
+          </p>
         </div>
       </div>
     )
