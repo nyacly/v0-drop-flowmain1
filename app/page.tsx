@@ -244,7 +244,7 @@ function SimpleMapView({ stops }: { stops: Stop[] }) {
         width: "100%",
         height: "400px",
         borderRadius: "12px",
-        background: "#f8fafc",
+        background: "#f0f9ff",
         border: "1px solid #e2e8f0",
         position: "relative",
         overflow: "hidden",
@@ -252,22 +252,83 @@ function SimpleMapView({ stops }: { stops: Stop[] }) {
     >
       {/* SVG Map */}
       <svg width="100%" height="100%" viewBox="0 0 800 400" style={{ position: "absolute", top: 0, left: 0 }}>
-        {/* Background grid pattern */}
         <defs>
-          <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-            <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#e2e8f0" strokeWidth="1" opacity="0.5" />
+          {/* Water pattern */}
+          <pattern id="water" width="20" height="20" patternUnits="userSpaceOnUse">
+            <rect width="20" height="20" fill="#bfdbfe" />
+            <path d="M 0 10 Q 5 5 10 10 T 20 10" stroke="#93c5fd" strokeWidth="0.5" fill="none" />
+          </pattern>
+          {/* Park pattern */}
+          <pattern id="park" width="15" height="15" patternUnits="userSpaceOnUse">
+            <rect width="15" height="15" fill="#dcfce7" />
+            <circle cx="7.5" cy="7.5" r="2" fill="#22c55e" opacity="0.3" />
           </pattern>
         </defs>
-        <rect width="100%" height="100%" fill="url(#grid)" />
 
-        {/* Map roads/streets */}
-        <g stroke="#94a3b8" strokeWidth="2" fill="none">
-          <path d="M 50 100 L 750 100" />
-          <path d="M 50 200 L 750 200" />
-          <path d="M 50 300 L 750 300" />
-          <path d="M 200 50 L 200 350" />
-          <path d="M 400 50 L 400 350" />
-          <path d="M 600 50 L 600 350" />
+        {/* Map background */}
+        <rect width="100%" height="100%" fill="#f8fafc" />
+
+        {/* Water bodies (river/lake) */}
+        <path d="M 0 150 Q 200 120 400 140 T 800 160 L 800 200 Q 600 180 400 190 T 0 210 Z" fill="url(#water)" />
+
+        {/* Parks and green spaces */}
+        <rect x="50" y="50" width="120" height="80" rx="8" fill="url(#park)" />
+        <rect x="600" y="250" width="140" height="100" rx="8" fill="url(#park)" />
+        <circle cx="300" cy="300" r="40" fill="url(#park)" />
+
+        {/* Major roads */}
+        <g stroke="#6b7280" strokeWidth="4" fill="none" opacity="0.8">
+          <path d="M 0 100 L 800 100" />
+          <path d="M 0 250 L 800 250" />
+          <path d="M 200 0 L 200 400" />
+          <path d="M 500 0 L 500 400" />
+        </g>
+
+        {/* Secondary streets */}
+        <g stroke="#9ca3af" strokeWidth="2" fill="none" opacity="0.6">
+          <path d="M 0 75 L 800 75" />
+          <path d="M 0 125 L 800 125" />
+          <path d="M 0 175 L 800 175" />
+          <path d="M 0 225 L 800 225" />
+          <path d="M 0 275 L 800 275" />
+          <path d="M 0 325 L 800 325" />
+          <path d="M 100 0 L 100 400" />
+          <path d="M 300 0 L 300 400" />
+          <path d="M 400 0 L 400 400" />
+          <path d="M 600 0 L 600 400" />
+          <path d="M 700 0 L 700 400" />
+        </g>
+
+        {/* Street names */}
+        <g fill="#4b5563" fontSize="10" fontFamily="Arial, sans-serif">
+          <text x="10" y="95" transform="rotate(0)">
+            Main Street
+          </text>
+          <text x="10" y="245" transform="rotate(0)">
+            Oak Avenue
+          </text>
+          <text x="205" y="20" transform="rotate(-90)">
+            First Street
+          </text>
+          <text x="505" y="20" transform="rotate(-90)">
+            Broadway
+          </text>
+          <text x="10" y="170" fontSize="8">
+            River Road
+          </text>
+          <text x="605" y="270" fontSize="8">
+            Central Park
+          </text>
+        </g>
+
+        {/* Buildings/blocks */}
+        <g fill="#e5e7eb" stroke="#d1d5db" strokeWidth="0.5">
+          <rect x="220" y="110" width="60" height="30" rx="2" />
+          <rect x="320" y="110" width="40" height="30" rx="2" />
+          <rect x="420" y="110" width="50" height="30" rx="2" />
+          <rect x="220" y="260" width="70" height="40" rx="2" />
+          <rect x="320" y="260" width="45" height="40" rx="2" />
+          <rect x="420" y="260" width="55" height="40" rx="2" />
         </g>
 
         {/* Delivery stop markers */}
@@ -279,9 +340,11 @@ function SimpleMapView({ stops }: { stops: Stop[] }) {
           return (
             <g key={stop.id}>
               {/* Marker shadow */}
-              <circle cx={x + 2} cy={y + 2} r="16" fill="rgba(0,0,0,0.2)" />
+              <circle cx={x + 2} cy={y + 2} r="18" fill="rgba(0,0,0,0.3)" />
               {/* Marker background */}
-              <circle cx={x} cy={y} r="16" fill={isCompleted ? "#22c55e" : "#ef4444"} stroke="white" strokeWidth="3" />
+              <circle cx={x} cy={y} r="18" fill={isCompleted ? "#22c55e" : "#ef4444"} stroke="white" strokeWidth="3" />
+              {/* Marker inner circle */}
+              <circle cx={x} cy={y} r="14" fill={isCompleted ? "#16a34a" : "#dc2626"} />
               {/* Marker number */}
               <text
                 x={x}
@@ -302,14 +365,23 @@ function SimpleMapView({ stops }: { stops: Stop[] }) {
                   x2={150 + (((index + 1) * 120) % 500)}
                   y2={120 + Math.floor((index + 1) / 4) * 80}
                   stroke="#6366f1"
-                  strokeWidth="2"
-                  strokeDasharray="5,5"
-                  opacity="0.6"
+                  strokeWidth="3"
+                  strokeDasharray="8,4"
+                  opacity="0.8"
                 />
               )}
             </g>
           )
         })}
+
+        {/* Compass rose */}
+        <g transform="translate(720, 60)">
+          <circle cx="0" cy="0" r="25" fill="white" stroke="#d1d5db" strokeWidth="1" />
+          <path d="M 0 -20 L 5 -5 L 0 0 L -5 -5 Z" fill="#ef4444" />
+          <text x="0" y="-30" textAnchor="middle" fontSize="8" fill="#4b5563">
+            N
+          </text>
+        </g>
       </svg>
 
       {/* Map legend */}
