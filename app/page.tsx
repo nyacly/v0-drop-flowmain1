@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -19,7 +19,7 @@ import { MapPin, CheckCircle, Clock, Plus, AlertCircle } from "lucide-react"
 
 declare global {
   interface Window {
-    google: any
+    L: any
   }
 }
 
@@ -234,100 +234,167 @@ interface RoutePlanningProps {
   removeStop: (id: string) => void
 }
 
-function GoogleMap({ stops }: { stops: Stop[] }) {
-  const [map, setMap] = useState<any>(null)
+function LeafletMap({ stops }: { stops: Stop[] }) {
+  const mapRef = useRef<HTMLDivElement>(null)
+  const mapInstanceRef = useRef<any>(null)
+  const markersRef = useRef<any[]>([])
   const [isLoaded, setIsLoaded] = useState(false)
+  const [mapReady, setMapReady] = useState(false)
 
+  console.log("[v0] LeafletMap render - stops:", stops.length, "isLoaded:", isLoaded, "mapReady:", mapReady)
+
+  // Load Leaflet CSS and JS
   useEffect(() => {
-    if (!window.google) {
-      // For now, show a placeholder until server-side API key loading is implemented
-      setIsLoaded(false)
+    if (typeof window === "undefined") return
+
+    console.log("[v0] Loading Leaflet resources...")
+
+    // Load Leaflet CSS
+    if (!document.querySelector('link[href*="leaflet"]')) {
+      const link = document.createElement("link")
+      link.rel = "stylesheet"
+      link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      document.head.appendChild(link)
+      console.log("[v0] Leaflet CSS loaded")
+    }
+
+    // Load Leaflet JS
+    if (!window.L) {
+      const script = document.createElement("script")
+      script.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+      script.onload = () => {
+        console.log("[v0] Leaflet JS loaded")
+        setIsLoaded(true)
+      }
+      script.onerror = () => {
+        console.error("[v0] Failed to load Leaflet JS")
+      }
+      document.head.appendChild(script)
     } else {
+      console.log("[v0] Leaflet already available")
       setIsLoaded(true)
     }
   }, [])
 
+  // Initialize map
   useEffect(() => {
-    if (isLoaded && !map) {
+    if (!isLoaded || !mapRef.current || mapInstanceRef.current) return
+
+    console.log("[v0] Initializing map...")
+    try {
       // Initialize map centered on Brisbane, Australia
-      const mapInstance = new window.google.maps.Map(document.getElementById("google-map")!, {
-        center: { lat: -27.4698, lng: 153.0251 }, // Brisbane coordinates
-        zoom: 11,
-        styles: [
-          {
-            featureType: "poi",
-            elementType: "labels",
-            stylers: [{ visibility: "off" }],
-          },
-        ],
-      })
-      setMap(mapInstance)
-    }
-  }, [isLoaded, map])
+      const map = window.L.map(mapRef.current).setView([-27.4698, 153.0251], 11)
 
+      // Add OpenStreetMap tiles
+      window.L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      }).addTo(map)
+
+      mapInstanceRef.current = map
+      setMapReady(true)
+      console.log("[v0] Map initialized successfully")
+    } catch (error) {
+      console.error("[v0] Map initialization error:", error)
+    }
+  }, [isLoaded])
+
+  // Add markers for stops
   useEffect(() => {
-    if (map && stops.length > 0) {
-      // Clear existing markers
-      // Add markers for each stop
-      const bounds = new window.google.maps.LatLngBounds()
-
-      stops.forEach((stop, index) => {
-        // Use geocoding to get coordinates for the address
-        const geocoder = new window.google.maps.Geocoder()
-        geocoder.geocode({ address: stop.address }, (results: any, status: string) => {
-          if (status === "OK" && results?.[0]) {
-            const position = results[0].geometry.location
-
-            // Create custom marker
-            const marker = new window.google.maps.Marker({
-              position: position,
-              map: map,
-              title: stop.address,
-              label: {
-                text: (index + 1).toString(),
-                color: "white",
-                fontWeight: "bold",
-              },
-              icon: {
-                path: window.google.maps.SymbolPath.CIRCLE,
-                scale: 20,
-                fillColor: stop.status === "done" ? "#22c55e" : "#ef4444",
-                fillOpacity: 1,
-                strokeColor: "white",
-                strokeWeight: 2,
-              },
-            })
-
-            // Add info window
-            const infoWindow = new window.google.maps.InfoWindow({
-              content: `
-                <div style="padding: 8px;">
-                  <strong>Stop ${index + 1}</strong><br/>
-                  ${stop.address}<br/>
-                  <span style="color: ${stop.status === "done" ? "#22c55e" : "#ef4444"};">
-                    ${stop.status === "done" ? "✓ Completed" : "⏳ Pending"}
-                  </span>
-                </div>
-              `,
-            })
-
-            marker.addListener("click", () => {
-              infoWindow.open(map, marker)
-            })
-
-            bounds.extend(position)
-          }
-        })
-      })
-
-      // Fit map to show all markers
-      if (stops.length > 1) {
-        setTimeout(() => map.fitBounds(bounds), 1000)
-      }
+    if (!mapReady || !mapInstanceRef.current || !window.L || stops.length === 0) {
+      console.log("[v0] Skipping markers - mapReady:", mapReady, "stops:", stops.length)
+      return
     }
-  }, [map, stops])
 
-  if (!isLoaded) {
+    console.log("[v0] Adding markers for", stops.length, "stops")
+
+    // Clear existing markers
+    markersRef.current.forEach((marker) => {
+      mapInstanceRef.current.removeLayer(marker)
+    })
+    markersRef.current = []
+
+    const bounds = window.L.latLngBounds()
+    let markersAdded = 0
+
+    // Add markers for each stop
+    stops.forEach(async (stop, index) => {
+      try {
+        console.log("[v0] Geocoding address:", stop.address)
+
+        // Use Nominatim geocoding service
+        const response = await fetch(
+          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(stop.address)}&limit=1&countrycodes=au`,
+        )
+        const data = await response.json()
+
+        if (data && data.length > 0) {
+          const lat = Number.parseFloat(data[0].lat)
+          const lng = Number.parseFloat(data[0].lon)
+
+          console.log("[v0] Geocoded", stop.address, "to", lat, lng)
+
+          // Create custom marker icon
+          const markerColor = stop.status === "done" ? "#22c55e" : "#ef4444"
+          const customIcon = window.L.divIcon({
+            html: `
+              <div style="
+                background-color: ${markerColor};
+                color: white;
+                border-radius: 50%;
+                width: 30px;
+                height: 30px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-weight: bold;
+                font-size: 14px;
+                border: 2px solid white;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+              ">
+                ${index + 1}
+              </div>
+            `,
+            className: "custom-div-icon",
+            iconSize: [30, 30],
+            iconAnchor: [15, 15],
+          })
+
+          const marker = window.L.marker([lat, lng], { icon: customIcon }).addTo(mapInstanceRef.current)
+
+          // Add popup
+          marker.bindPopup(`
+            <div style="padding: 8px; min-width: 200px;">
+              <strong>Stop ${index + 1}</strong><br/>
+              ${stop.address}<br/>
+              <span style="color: ${markerColor}; font-weight: bold;">
+                ${stop.status === "done" ? "✓ Completed" : "⏳ Pending"}
+              </span>
+            </div>
+          `)
+
+          markersRef.current.push(marker)
+          bounds.extend([lat, lng])
+          markersAdded++
+
+          console.log("[v0] Added marker", index + 1, "at", lat, lng)
+
+          // Fit map to show all markers when all are added
+          if (markersAdded === stops.length && markersAdded > 0) {
+            setTimeout(() => {
+              console.log("[v0] Fitting map to bounds")
+              mapInstanceRef.current.fitBounds(bounds, { padding: [20, 20] })
+            }, 500)
+          }
+        } else {
+          console.warn("[v0] No geocoding results for:", stop.address)
+        }
+      } catch (error) {
+        console.error("[v0] Geocoding error for address:", stop.address, error)
+      }
+    })
+  }, [stops, mapReady])
+
+  if (!isLoaded || !mapReady) {
     return (
       <div
         style={{
@@ -344,12 +411,11 @@ function GoogleMap({ stops }: { stops: Stop[] }) {
       >
         <div>
           <div style={{ fontSize: "48px", marginBottom: "16px" }}>🗺️</div>
-          <h3 style={{ margin: "0 0 8px 0", fontSize: "18px", fontWeight: "600" }}>Route Map</h3>
+          <h3 style={{ margin: "0 0 8px 0", fontSize: "18px", fontWeight: "600" }}>
+            {!isLoaded ? "Loading Map..." : "Initializing Map..."}
+          </h3>
           <p style={{ margin: "0", fontSize: "14px", opacity: 0.9 }}>
-            Showing {stops.length} delivery stop{stops.length !== 1 ? "s" : ""}
-          </p>
-          <p style={{ margin: "8px 0 0 0", fontSize: "12px", opacity: 0.7 }}>
-            Map visualization requires server-side configuration
+            Preparing {stops.length} delivery stop{stops.length !== 1 ? "s" : ""}
           </p>
         </div>
       </div>
@@ -358,7 +424,7 @@ function GoogleMap({ stops }: { stops: Stop[] }) {
 
   return (
     <div
-      id="google-map"
+      ref={mapRef}
       style={{
         width: "100%",
         height: "400px",
@@ -439,10 +505,10 @@ function RoutePlanning({ stops, updateStopStatus, removeStop }: RoutePlanningPro
         <Card>
           <CardHeader>
             <CardTitle>Route Map</CardTitle>
-            <CardDescription>Visual overview of your delivery stops</CardDescription>
+            <CardDescription>Interactive map showing your delivery stops</CardDescription>
           </CardHeader>
           <CardContent>
-            <GoogleMap stops={stops} />
+            <LeafletMap stops={stops} />
           </CardContent>
         </Card>
       )}
