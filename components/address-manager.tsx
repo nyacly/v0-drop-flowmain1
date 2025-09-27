@@ -28,7 +28,7 @@ export function AddressManager({ onCreateRoute }: AddressManagerProps) {
   const filteredAddresses = addresses.filter(
     (addr) =>
       addr.address.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      addr.description.toLowerCase().includes(searchTerm.toLowerCase()),
+      (addr.description && addr.description.toLowerCase().includes(searchTerm.toLowerCase())),
   )
 
   const handleAddSingle = () => {
