@@ -23,7 +23,14 @@ function useStops() {
   const [stops, setStops] = useState(() => {
     if (typeof window !== "undefined") {
       const saved = localStorage.getItem("dropflow-stops")
-      return saved ? JSON.parse(saved) : []
+      if (saved) {
+        try {
+          return JSON.parse(saved)
+        } catch (e) {
+          console.error("Failed to parse stops from localStorage", e)
+          return []
+        }
+      }
     }
     return []
   })
