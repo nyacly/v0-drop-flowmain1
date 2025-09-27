@@ -8,6 +8,9 @@ import { DeliveryProgress } from "@/components/delivery-progress"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/hooks/useAuth"
 import { AuthModal } from "@/components/auth/auth-modal"
+import { AddressManager } from "@/components/address-manager"
+import { RouteManager } from "@/components/route-manager"
+import { RoutePlanner } from "@/components/route-planner"
 
 // Mock data and types
 interface Stop {
@@ -236,103 +239,130 @@ export default function DropFlowApp() {
           </div>
         </div>
 
-        {hasActiveDelivery && (
-          <div className="mb-6">
-            <DeliveryProgress
-              stops={stops}
-              activeRoute={activeRoute}
-              compact
-              onNavigateToRoute={() => setCurrentView("plan")}
-            />
-          </div>
+        {currentView !== "home" && (
+          <Button variant="outline" onClick={() => setCurrentView("home")} className="mb-6">
+            &larr; Back to Dashboard
+          </Button>
         )}
 
-        <Card className="mb-6 border-red-200 bg-red-50">
-          <CardHeader>
-            <CardTitle>Quick Start</CardTitle>
-            <CardDescription>Manage your addresses and create optimized delivery routes</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <Button
-                onClick={() => setCurrentView("addresses")}
-                className="bg-red-600 hover:bg-red-700"
-                variant="default"
-              >
-                <Package className="h-4 w-4 mr-2" />
-                Manage Addresses
-              </Button>
-              <Button onClick={() => setCurrentView("routes")} variant="outline" className="bg-transparent">
-                <MapPin className="h-4 w-4 mr-2" />
-                Create Routes
-              </Button>
-            </div>
-            {routes.length > 0 && (
-              <p className="text-sm text-muted-foreground text-center">
-                You have {routes.length} delivery route{routes.length !== 1 ? "s" : ""} ready
-              </p>
+        {currentView === "home" && (
+          <>
+            {hasActiveDelivery && (
+              <div className="mb-6">
+                <DeliveryProgress
+                  stops={stops}
+                  activeRoute={activeRoute}
+                  compact
+                  onNavigateToRoute={() => setCurrentView("plan")}
+                />
+              </div>
             )}
-          </CardContent>
-        </Card>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          <Card
-            className="cursor-pointer hover:bg-muted/50 transition-colors"
-            onClick={() => setCurrentView("addresses")}
-          >
-            <CardContent className="pt-6">
-              <div className="text-center">
-                <p className="text-3xl font-bold text-red-600 mb-1">{addresses.length}</p>
-                <p className="text-sm text-muted-foreground">Total Addresses</p>
-              </div>
-            </CardContent>
-          </Card>
+            <Card className="mb-6 border-red-200 bg-red-50">
+              <CardHeader>
+                <CardTitle>Quick Start</CardTitle>
+                <CardDescription>Manage your addresses and create optimized delivery routes</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <Button
+                    onClick={() => setCurrentView("addresses")}
+                    className="bg-red-600 hover:bg-red-700"
+                    variant="default"
+                  >
+                    <Package className="h-4 w-4 mr-2" />
+                    Manage Addresses
+                  </Button>
+                  <Button onClick={() => setCurrentView("routes")} variant="outline" className="bg-transparent">
+                    <MapPin className="h-4 w-4 mr-2" />
+                    Create Routes
+                  </Button>
+                </div>
+                {routes.length > 0 && (
+                  <p className="text-sm text-muted-foreground text-center">
+                    You have {routes.length} delivery route{routes.length !== 1 ? "s" : ""} ready
+                  </p>
+                )}
+              </CardContent>
+            </Card>
 
-          <Card className="cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => setCurrentView("routes")}>
-            <CardContent className="pt-6">
-              <div className="text-center">
-                <p className="text-3xl font-bold text-red-600 mb-1">{routes.length}</p>
-                <p className="text-sm text-muted-foreground">Delivery Routes</p>
-              </div>
-            </CardContent>
-          </Card>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+              <Card
+                className="cursor-pointer hover:bg-muted/50 transition-colors"
+                onClick={() => setCurrentView("addresses")}
+              >
+                <CardContent className="pt-6">
+                  <div className="text-center">
+                    <p className="text-3xl font-bold text-red-600 mb-1">{addresses.length}</p>
+                    <p className="text-sm text-muted-foreground">Total Addresses</p>
+                  </div>
+                </CardContent>
+              </Card>
 
-          <Card className="cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => setCurrentView("routes")}>
-            <CardContent className="pt-6">
-              <div className="text-center">
-                <p className="text-3xl font-bold text-red-600 mb-1">
-                  {routes.filter((r) => r.status === "active").length}
-                </p>
-                <p className="text-sm text-muted-foreground">Active Routes</p>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+              <Card
+                className="cursor-pointer hover:bg-muted/50 transition-colors"
+                onClick={() => setCurrentView("routes")}
+              >
+                <CardContent className="pt-6">
+                  <div className="text-center">
+                    <p className="text-3xl font-bold text-red-600 mb-1">{routes.length}</p>
+                    <p className="text-sm text-muted-foreground">Delivery Routes</p>
+                  </div>
+                </CardContent>
+              </Card>
 
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle>Account Status</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-medium">{user?.isPremium ? "Premium Account" : "Free Account"}</p>
-                <p className="text-sm text-muted-foreground">
-                  {user?.isPremium
-                    ? "Unlimited addresses and premium features"
-                    : `${addresses.length}/15 addresses used`}
-                </p>
-              </div>
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={() => router.push("/account")}>
-                  <Users className="h-4 w-4 mr-2" />
-                  Account Profile
-                </Button>
-                {!user?.isPremium && <Button size="sm">Upgrade to Premium</Button>}
-              </div>
+              <Card
+                className="cursor-pointer hover:bg-muted/50 transition-colors"
+                onClick={() => setCurrentView("routes")}
+              >
+                <CardContent className="pt-6">
+                  <div className="text-center">
+                    <p className="text-3xl font-bold text-red-600 mb-1">
+                      {routes.filter((r) => r.status === "active").length}
+                    </p>
+                    <p className="text-sm text-muted-foreground">Active Routes</p>
+                  </div>
+                </CardContent>
+              </Card>
             </div>
-          </CardContent>
-        </Card>
+
+            <Card className="mb-6">
+              <CardHeader>
+                <CardTitle>Account Status</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium">{user?.isPremium ? "Premium Account" : "Free Account"}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {user?.isPremium
+                        ? "Unlimited addresses and premium features"
+                        : `${addresses.length}/15 addresses used`}
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" onClick={() => router.push("/account")}>
+                      <Users className="h-4 w-4 mr-2" />
+                      Account Profile
+                    </Button>
+                    {!user?.isPremium && <Button size="sm">Upgrade to Premium</Button>}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </>
+        )}
+
+        {currentView === "addresses" && <AddressManager onCreateRoute={handleCreateRoute} />}
+        {currentView === "routes" && <RouteManager onStartRoute={handleStartRoute} />}
+        {currentView === "plan" && (
+          <RoutePlanner
+            stops={stops}
+            onUpdateStatus={updateStopStatus}
+            onReorder={reorderStops}
+            onNavigateBack={() => setCurrentView("home")}
+          />
+        )}
       </div>
     </div>
   )
