@@ -9,13 +9,15 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Textarea } from "@/components/ui/textarea"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { MapPin, CheckCircle, Clock, AlertCircle, GripVertical, Package, Users } from "lucide-react"
+import { MapPin, CheckCircle, Clock, AlertCircle, GripVertical, Package, Users, LogOut, LogIn } from "lucide-react"
 import { getGoogleMapsApiKey } from "@/lib/google-maps"
 import { AddressManager } from "@/components/address-manager"
 import { RouteManager } from "@/components/route-manager"
 import { useAddresses, type DeliveryRoute } from "@/hooks/use-addresses"
 import { DeliveryProgress } from "@/components/delivery-progress"
 import { useRouter } from "next/navigation"
+import { useAuth } from "@/hooks/useAuth"
+import { AuthModal } from "@/components/auth/auth-modal"
 
 // Mock data and types
 interface Stop {
@@ -25,16 +27,6 @@ interface Stop {
   coordinates?: { lat: number; lng: number }
   notes?: string
   description?: string // Added description field
-}
-
-// Mock hooks
-function useAuth() {
-  const [user] = useState({
-    email: "demo@dropflow.com",
-    firstName: "Demo",
-    isPremium: false,
-  })
-  return { user }
 }
 
 function useStops() {
@@ -1650,11 +1642,28 @@ function RoutePlanning({ stops, updateStopStatus, removeStop, reorderStops }: Ro
 }
 
 export default function DropFlowApp() {
-  const { user } = useAuth()
+  const { user, logout, isLoading } = useAuth()
   const { stops, addStop, removeStop, updateStopStatus, reorderStops, loadRouteStops } = useStops()
   const { addresses, routes } = useAddresses()
   const [currentView, setCurrentView] = useState<"home" | "addresses" | "routes" | "plan">("home")
+  const [showAuthModal, setShowAuthModal] = useState(false)
+  const [authModalView, setAuthModalView] = useState<"login" | "signup">("login")
   const router = useRouter()
+
+  useEffect(() => {
+    if (!isLoading && !user) {
+      setShowAuthModal(true)
+    }
+  }, [user, isLoading])
+
+  const handleLogout = async () => {
+    await logout()
+    setShowAuthModal(true)
+  }
+
+  const handleAuthSuccess = () => {
+    setShowAuthModal(false)
+  }
 
   // Define hasActiveDelivery and activeRoute here
   const hasActiveDelivery = stops.some((stop) => stop.status === "pending")
@@ -1671,6 +1680,58 @@ export default function DropFlowApp() {
     setCurrentView("plan")
   }
 
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600 mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading DropFlow...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!user) {
+    return (
+      <>
+        <div className="min-h-screen bg-background flex items-center justify-center">
+          <div className="text-center max-w-md mx-auto p-6">
+            <h1 className="text-4xl font-bold text-red-600 mb-4">🚛 DropFlow</h1>
+            <p className="text-xl text-muted-foreground mb-6">Smart Delivery Route Optimization</p>
+            <p className="text-muted-foreground mb-8">
+              Sign in to start optimizing your delivery routes with AI-powered planning and live traffic data.
+            </p>
+            <div className="space-y-3">
+              <Button
+                onClick={() => {
+                  setAuthModalView("login")
+                  setShowAuthModal(true)
+                }}
+                className="w-full bg-red-600 hover:bg-red-700"
+                size="lg"
+              >
+                <LogIn className="h-4 w-4 mr-2" />
+                Sign In
+              </Button>
+              <Button
+                onClick={() => {
+                  setAuthModalView("signup")
+                  setShowAuthModal(true)
+                }}
+                variant="outline"
+                className="w-full"
+                size="lg"
+              >
+                Create Account
+              </Button>
+            </div>
+          </div>
+        </div>
+        <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} defaultView={authModalView} />
+      </>
+    )
+  }
+
   if (currentView === "plan") {
     return (
       <div className="min-h-screen bg-background">
@@ -1680,10 +1741,16 @@ export default function DropFlowApp() {
               ← Back to Home
             </Button>
             <h1 className="text-2xl font-bold">🚛 DropFlow</h1>
-            <Button variant="outline" onClick={() => router.push("/account")}>
-              <GripVertical className="h-4 w-4 mr-2" />
-              Account
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" onClick={() => router.push("/account")}>
+                <GripVertical className="h-4 w-4 mr-2" />
+                Account
+              </Button>
+              <Button variant="outline" onClick={handleLogout}>
+                <LogOut className="h-4 w-4 mr-2" />
+                Logout
+              </Button>
+            </div>
           </div>
 
           {hasActiveDelivery && (
@@ -1717,10 +1784,16 @@ export default function DropFlowApp() {
               ← Back to Home
             </Button>
             <h1 className="text-2xl font-bold">🚛 DropFlow - Address Manager</h1>
-            <Button variant="outline" onClick={() => router.push("/account")}>
-              <GripVertical className="h-4 w-4 mr-2" />
-              Account
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" onClick={() => router.push("/account")}>
+                <GripVertical className="h-4 w-4 mr-2" />
+                Account
+              </Button>
+              <Button variant="outline" onClick={handleLogout}>
+                <LogOut className="h-4 w-4 mr-2" />
+                Logout
+              </Button>
+            </div>
           </div>
           <AddressManager onCreateRoute={handleCreateRoute} />
         </div>
@@ -1737,10 +1810,16 @@ export default function DropFlowApp() {
               ← Back to Home
             </Button>
             <h1 className="text-2xl font-bold">🚛 DropFlow - Route Manager</h1>
-            <Button variant="outline" onClick={() => router.push("/account")}>
-              <GripVertical className="h-4 w-4 mr-2" />
-              Account
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" onClick={() => router.push("/account")}>
+                <GripVertical className="h-4 w-4 mr-2" />
+                Account
+              </Button>
+              <Button variant="outline" onClick={handleLogout}>
+                <LogOut className="h-4 w-4 mr-2" />
+                Logout
+              </Button>
+            </div>
           </div>
           <RouteManager onStartRoute={handleStartRoute} />
         </div>
@@ -1751,11 +1830,23 @@ export default function DropFlowApp() {
   return (
     <div className="min-h-screen bg-background">
       <div className="container mx-auto py-8 px-4">
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-red-600 mb-2">🚛 DropFlow</h1>
-          <p className="text-xl text-muted-foreground">
-            Welcome back, {user?.firstName || user?.email?.split("@")[0] || "User"}!
-          </p>
+        <div className="flex items-center justify-between mb-8">
+          <div className="text-center flex-1">
+            <h1 className="text-4xl font-bold text-red-600 mb-2">🚛 DropFlow</h1>
+            <p className="text-xl text-muted-foreground">
+              Welcome back, {user?.firstName || user?.email?.split("@")[0] || "User"}!
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => router.push("/account")}>
+              <Users className="h-4 w-4 mr-2" />
+              Account
+            </Button>
+            <Button variant="outline" onClick={handleLogout}>
+              <LogOut className="h-4 w-4 mr-2" />
+              Logout
+            </Button>
+          </div>
         </div>
 
         {hasActiveDelivery && (

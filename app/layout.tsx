@@ -4,11 +4,12 @@ import { GeistSans } from "geist/font/sans"
 import { GeistMono } from "geist/font/mono"
 import { Analytics } from "@vercel/analytics/next"
 import { Suspense } from "react"
+import { AuthProvider } from "@/hooks/useAuth"
 import "./globals.css"
 
 export const metadata: Metadata = {
-  title: "v0 App",
-  description: "Created with v0",
+  title: "DropFlow - Smart Delivery Route Optimization",
+  description: "Optimize your delivery routes with AI-powered route planning",
   generator: "v0.app",
 }
 
@@ -20,7 +21,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`font-sans ${GeistSans.variable} ${GeistMono.variable}`}>
-        <Suspense fallback={<div>Loading...</div>}>{children}</Suspense>
+        <AuthProvider>
+          <Suspense fallback={<div>Loading...</div>}>{children}</Suspense>
+        </AuthProvider>
         <Analytics />
       </body>
     </html>
