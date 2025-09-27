@@ -10,6 +10,7 @@ import { RouteManager } from "@/components/route-manager"
 import { DeliveryProgress } from "@/components/delivery-progress"
 import { AccountProfile } from "@/components/account-profile"
 import { AuthModal } from "@/components/auth/auth-modal"
+import { PWAInstall } from "@/components/pwa-install"
 import { useAuth } from "@/hooks/useAuth"
 
 type ViewType = "dashboard" | "addresses" | "routes" | "progress" | "account"
@@ -18,6 +19,19 @@ export default function DropFlowApp() {
   const [currentView, setCurrentView] = useState<ViewType>("dashboard")
   const [showAuthModal, setShowAuthModal] = useState(false)
   const { user, logout, isLoading } = useAuth()
+
+  useEffect(() => {
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker
+        .register("/sw.js")
+        .then((registration) => {
+          console.log("[v0] Service Worker registered successfully:", registration)
+        })
+        .catch((error) => {
+          console.log("[v0] Service Worker registration failed:", error)
+        })
+    }
+  }, [])
 
   // Show auth modal if user is not logged in
   useEffect(() => {
@@ -245,6 +259,8 @@ export default function DropFlowApp() {
 
       {/* Auth Modal */}
       <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />
+
+      <PWAInstall />
     </div>
   )
 }
