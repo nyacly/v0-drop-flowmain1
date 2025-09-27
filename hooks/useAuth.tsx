@@ -130,10 +130,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       }
 
-      // For demo purposes, we'll just return success without actually creating the user
+      // For demo purposes, we simulate sending an email by logging a code to the console
+      const verificationCode = Math.floor(100000 + Math.random() * 900000).toString()
+      console.log(`[DEMO] Verification code for ${email}: ${verificationCode}`)
+
+      // In a real app, this code would be sent to the user's email.
+      // For this demo, we store it in localStorage to be checked by the verifyEmail function.
+      localStorage.setItem(`verification-code-${email}`, verificationCode)
+
       return {
         success: true,
-        message: "Registration successful! Please verify your email.",
+        message: "Registration successful! A verification code has been logged to the console.",
         email: email,
       }
     } catch (error: any) {
@@ -149,8 +156,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       await mockDelay(600) // Simulate API call delay
 
-      // For demo purposes, accept any 6-digit code
-      if (code.length === 6 && /^\d+$/.test(code)) {
+      // Check the stored verification code
+      const storedCode = localStorage.getItem(`verification-code-${email}`)
+
+      if (storedCode && storedCode === code) {
         // Create a new verified user
         const newUser = {
           id: Date.now(),
@@ -164,6 +173,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         setUser(newUser)
         localStorage.setItem("dropflow-user", JSON.stringify(newUser))
+        localStorage.removeItem(`verification-code-${email}`) // Clean up the verification code
 
         return {
           success: true,
@@ -173,7 +183,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       return {
         success: false,
-        message: "Invalid verification code. Please enter a 6-digit code.",
+        message: "Invalid verification code. Please try again.",
       }
     } catch (error: any) {
       console.error("Email verification error:", error)
