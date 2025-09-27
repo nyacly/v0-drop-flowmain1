@@ -132,8 +132,8 @@ importers:
         specifier: latest
         version: 7.5.8(@react-navigation/native@7.1.17(react-native@0.81.4(@babel/core@7.28.4)(@types/react@19.0.0)(bufferutil@4.0.9)(react@19.0.0))(react@19.0.0))(react-native-gesture-handler@2.28.0(react-native@0.81.4(@babel/core@7.28.4)(@types/react@19.0.0)(bufferutil@4.0.9)(react@19.0.0))(react@19.0.0))(react-native-reanimated@4.1.2(@babel/core@7.28.4)(react-native-worklets@0.6.0(@babel/core@7.28.4)(react-native@0.81.4(@babel/core@7.28.4)(@types/react@19.0.0)(bufferutil@4.0.9)(react@19.0.0))(react@19.0.0))(react-native@0.81.4(@babel/core@7.28.4)(@types/react@19.0.0)(bufferutil@4.0.9)(react@19.0.0))(react@19.0.0))(react-native-safe-area-context@5.6.1(react-native@0.81.4(@babel/core@7.28.4)(@types/react@19.0.0)(bufferutil@4.0.9)(react@19.0.0))(react@19.0.0))(react-native-screens@4.16.0(react-native@0.81.4(@babel/core@7.28.4)(@types/react@19.0.0)(bufferutil@4.0.9)(react@19.0.0))(react@19.0.0))(react-native@0.81.4(@babel/core@7.28.4)(@types/react@19.0.0)(bufferutil@4.0.9)(react@19.0.0))(react@19.0.0)
       '@stackframe/stack':
-        specifier: latest
-        version: 2.8.41(@aws-sdk/credential-provider-web-identity@3.896.0)(@types/react-dom@19.0.0)(@types/react@19.0.0)(next@15.2.4(@babel/core@7.28.4)(@opentelemetry/api@1.9.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-dom@19.0.0(react@19.0.0))(react@19.0.0)(tailwindcss@4.1.9)
+        specifier: 2.8.39
+        version: 2.8.39(@aws-sdk/credential-provider-web-identity@3.896.0)(@types/react-dom@19.0.0)(@types/react@19.0.0)(next@15.2.4(@babel/core@7.28.4)(@opentelemetry/api@1.9.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-dom@19.0.0(react@19.0.0))(react@19.0.0)(tailwindcss@4.1.9)
       '@testing-library/react-native':
         specifier: latest
         version: 13.3.3(react-native@0.81.4(@babel/core@7.28.4)(@types/react@19.0.0)(bufferutil@4.0.9)(react@19.0.0))(react-test-renderer@19.1.1(react@19.0.0))(react@19.0.0)
@@ -2816,8 +2816,8 @@ packages:
     resolution: {integrity: sha512-OlA/yZHh0ekYFnbUkmYBDQPE6fGfdrvgz39ktp8Xf+FA6BfxLejPTMDOG0Nfk5/rDySAz1dRbFf24zaAFYVXlQ==}
     engines: {node: '>=18.0.0'}
 
-  '@stackframe/stack-sc@2.8.41':
-    resolution: {integrity: sha512-lv3vVBafbeLdphbkELvU8AW1oA/vTgOuSz4OoKqz9oxnaTCmVg+UrNbCL64kb+LE0I6dpbCw0VPSDvS/Wv/LOA==}
+  '@stackframe/stack-sc@2.8.39':
+    resolution: {integrity: sha512-JowHbRG9AOiJLa94a3tIl5wpw3dxyPDjrdYV0LeZbwFYPIckZ3CcFpcuje/sFVfIoyYAxJrX5HHAgNW82fGebw==}
     peerDependencies:
       '@types/react': '>=18.3.12 || >=19.0.0-rc.0'
       '@types/react-dom': '>=18.3.1 || >=19.0.0-rc.0'
@@ -2830,8 +2830,8 @@ packages:
       '@types/react-dom':
         optional: true
 
-  '@stackframe/stack-shared@2.8.41':
-    resolution: {integrity: sha512-H2a6WjQVxJ8tWYwrCAiVn6ba1r6LDcEgB3itq9nTxKFivf2Wkz9XtWWRhq/ZpYoI8ArsTPipKWMrRotJ5/w3dQ==}
+  '@stackframe/stack-shared@2.8.39':
+    resolution: {integrity: sha512-QvrPqamY2+PdE7lry29vM90k01b40qou9guzjbaRxKzPeJKQFWt+DWI7RXczcGzo6ZQ6kF9o6aGeA8fHrLycUg==}
     peerDependencies:
       '@types/react': '>=18.2 || >=19.0.0-rc.0'
       '@types/react-dom': '>=18.2 || >=19.0.0-rc.0'
@@ -2848,8 +2848,8 @@ packages:
       yup:
         optional: true
 
-  '@stackframe/stack-ui@2.8.41':
-    resolution: {integrity: sha512-zHESYC4g5wNpCkQPblGZ3X0y8byxxDtPKBsmIt5wOEIFmotP/waOVoWz0MivzYhz58HKxVXgLUmY4S/dMTUQoA==}
+  '@stackframe/stack-ui@2.8.39':
+    resolution: {integrity: sha512-vGVysBvKP+bYcPlfXsAtcv7SlfSWIY5kktc8qhhXvyEKfGYBjHr0WHWQSUu7HQfiaEkb2CPlQVR0V3By/K28fw==}
     peerDependencies:
       '@types/react': '>=18.2.12 || >=19.0.0-rc.0'
       '@types/react-dom': '>=18.2.12 || >=19.0.0-rc.0'
@@ -2864,8 +2864,8 @@ packages:
       yup:
         optional: true
 
-  '@stackframe/stack@2.8.41':
-    resolution: {integrity: sha512-IDU9V4fmF4ICYmtH0KuhXyxvrg2mnQ5S/4PUJAkieyr8n5ZYVTr5b0G5fDeBBYMGNFpDZ5EI1/IK/w+F9NY3lg==}
+  '@stackframe/stack@2.8.39':
+    resolution: {integrity: sha512-PD9owYgdcgUjqpxXR/aQTUScGXMS7tbtEcX2a09yw0fTutIzYYqs90nfIsHgYExTNwxGyD2lj6hNmpWqJKSdFg==}
     peerDependencies:
       '@types/react': '>=18.2 || >=19.0.0-rc.0'
       '@types/react-dom': '>=18.2 || >=19.0.0-rc.0'
@@ -10052,7 +10052,7 @@ snapshots:
     dependencies:
       tslib: 2.8.1
 
-  '@stackframe/stack-sc@2.8.41(@types/react-dom@19.0.0)(@types/react@19.0.0)(next@15.2.4(@babel/core@7.28.4)(@opentelemetry/api@1.9.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-dom@19.0.0(react@19.0.0))(react@19.0.0)':
+  '@stackframe/stack-sc@2.8.39(@types/react-dom@19.0.0)(@types/react@19.0.0)(next@15.2.4(@babel/core@7.28.4)(@opentelemetry/api@1.9.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-dom@19.0.0(react@19.0.0))(react@19.0.0)':
     dependencies:
       next: 15.2.4(@babel/core@7.28.4)(@opentelemetry/api@1.9.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
       react: 19.0.0
@@ -10061,7 +10061,7 @@ snapshots:
       '@types/react': 19.0.0
       '@types/react-dom': 19.0.0
 
-  '@stackframe/stack-shared@2.8.41(@aws-sdk/credential-provider-web-identity@3.896.0)(@types/react-dom@19.0.0)(@types/react@19.0.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0)(yup@1.7.1)':
+  '@stackframe/stack-shared@2.8.39(@aws-sdk/credential-provider-web-identity@3.896.0)(@types/react-dom@19.0.0)(@types/react@19.0.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0)(yup@1.7.1)':
     dependencies:
       '@aws-sdk/client-kms': 3.896.0
       '@opentelemetry/api': 1.9.0
@@ -10088,7 +10088,7 @@ snapshots:
       - aws-crt
       - buffer
 
-  '@stackframe/stack-ui@2.8.41(@aws-sdk/credential-provider-web-identity@3.896.0)(@types/react-dom@19.0.0)(@types/react@19.0.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0)(yup@1.7.1)':
+  '@stackframe/stack-ui@2.8.39(@aws-sdk/credential-provider-web-identity@3.896.0)(@types/react-dom@19.0.0)(@types/react@19.0.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0)(yup@1.7.1)':
     dependencies:
       '@radix-ui/react-accordion': 1.2.12(@types/react-dom@19.0.0)(@types/react@19.0.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
       '@radix-ui/react-alert-dialog': 1.1.15(@types/react-dom@19.0.0)(@types/react@19.0.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
@@ -10119,7 +10119,7 @@ snapshots:
       '@radix-ui/react-toggle': 1.1.10(@types/react-dom@19.0.0)(@types/react@19.0.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
       '@radix-ui/react-toggle-group': 1.1.11(@types/react-dom@19.0.0)(@types/react@19.0.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
       '@radix-ui/react-tooltip': 1.2.8(@types/react-dom@19.0.0)(@types/react@19.0.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
-      '@stackframe/stack-shared': 2.8.41(@aws-sdk/credential-provider-web-identity@3.896.0)(@types/react-dom@19.0.0)(@types/react@19.0.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0)(yup@1.7.1)
+      '@stackframe/stack-shared': 2.8.39(@aws-sdk/credential-provider-web-identity@3.896.0)(@types/react-dom@19.0.0)(@types/react@19.0.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0)(yup@1.7.1)
       '@tanstack/react-table': 8.21.3(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
       class-variance-authority: 0.7.1
       clsx: 2.1.1
@@ -10143,14 +10143,14 @@ snapshots:
       - aws-crt
       - buffer
 
-  '@stackframe/stack@2.8.41(@aws-sdk/credential-provider-web-identity@3.896.0)(@types/react-dom@19.0.0)(@types/react@19.0.0)(next@15.2.4(@babel/core@7.28.4)(@opentelemetry/api@1.9.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-dom@19.0.0(react@19.0.0))(react@19.0.0)(tailwindcss@4.1.9)':
+  '@stackframe/stack@2.8.39(@aws-sdk/credential-provider-web-identity@3.896.0)(@types/react-dom@19.0.0)(@types/react@19.0.0)(next@15.2.4(@babel/core@7.28.4)(@opentelemetry/api@1.9.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-dom@19.0.0(react@19.0.0))(react@19.0.0)(tailwindcss@4.1.9)':
     dependencies:
       '@hookform/resolvers': 3.10.0(react-hook-form@7.63.0(react@19.0.0))
       '@oslojs/otp': 1.1.0
       '@simplewebauthn/browser': 11.0.0
-      '@stackframe/stack-sc': 2.8.41(@types/react-dom@19.0.0)(@types/react@19.0.0)(next@15.2.4(@babel/core@7.28.4)(@opentelemetry/api@1.9.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
-      '@stackframe/stack-shared': 2.8.41(@aws-sdk/credential-provider-web-identity@3.896.0)(@types/react-dom@19.0.0)(@types/react@19.0.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0)(yup@1.7.1)
-      '@stackframe/stack-ui': 2.8.41(@aws-sdk/credential-provider-web-identity@3.896.0)(@types/react-dom@19.0.0)(@types/react@19.0.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0)(yup@1.7.1)
+      '@stackframe/stack-sc': 2.8.39(@types/react-dom@19.0.0)(@types/react@19.0.0)(next@15.2.4(@babel/core@7.28.4)(@opentelemetry/api@1.9.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
+      '@stackframe/stack-shared': 2.8.39(@aws-sdk/credential-provider-web-identity@3.896.0)(@types/react-dom@19.0.0)(@types/react@19.0.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0)(yup@1.7.1)
+      '@stackframe/stack-ui': 2.8.39(@aws-sdk/credential-provider-web-identity@3.896.0)(@types/react-dom@19.0.0)(@types/react@19.0.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0)(yup@1.7.1)
       '@tanstack/react-table': 8.21.3(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
       browser-image-compression: 2.0.2
       color: 4.2.3

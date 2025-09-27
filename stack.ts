@@ -1,1 +1,4 @@
-export { stackServerApp } from "./lib/stack-server"
+export const stackServerApp = {
+  getUser: () => Promise.resolve(null),
+  signOut: () => Promise.resolve(),
+} as any

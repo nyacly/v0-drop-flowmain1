@@ -1,393 +1,256 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Card, CardContent } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
-import { Clock, MapPin, CheckCircle, Truck } from "lucide-react"
-import type { DeliveryRoute } from "@/hooks/use-addresses"
-import { getGoogleMapsApiKey } from "@/lib/google-maps"
+import { MapPin, Clock, CheckCircle, AlertCircle, Truck } from "lucide-react"
 
-interface Stop {
+interface DeliveryStop {
   id: string
   address: string
-  status: "pending" | "done" | "skipped"
-  coordinates?: { lat: number; lng: number }
+  status: "pending" | "in-progress" | "completed" | "failed"
+  estimatedTime: string
+  actualTime?: string
   notes?: string
-  description?: string
 }
 
-interface DeliveryProgressProps {
-  stops: Stop[]
-  activeRoute?: DeliveryRoute
-  compact?: boolean
-  className?: string
-  onNavigateToRoute?: () => void
+interface DeliveryRoute {
+  id: string
+  name: string
+  driver: string
+  vehicle: string
+  stops: DeliveryStop[]
+  startTime: string
+  estimatedDuration: string
+  status: "active" | "completed" | "paused"
 }
 
-export function DeliveryProgress({
-  stops,
-  activeRoute,
-  compact = false,
-  className = "",
-  onNavigateToRoute,
-}: DeliveryProgressProps) {
-  const [currentTime, setCurrentTime] = useState(new Date())
-  const [estimatedCompletion, setEstimatedCompletion] = useState<Date | null>(null)
-  const [trafficAwareETA, setTrafficAwareETA] = useState<string | null>(null)
-  const [currentLocation, setCurrentLocation] = useState<{ lat: number; lng: number } | null>(null)
+export function DeliveryProgress() {
+  const [routes, setRoutes] = useState<DeliveryRoute[]>([])
+  const [selectedRoute, setSelectedRoute] = useState<string | null>(null)
 
-  // Update current time every minute
   useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentTime(new Date())
-    }, 60000)
+    // Mock data for demonstration
+    const mockRoutes: DeliveryRoute[] = [
+      {
+        id: "route-1",
+        name: "Downtown Route A",
+        driver: "John Smith",
+        vehicle: "Truck #101",
+        startTime: "08:00 AM",
+        estimatedDuration: "4 hours",
+        status: "active",
+        stops: [
+          {
+            id: "stop-1",
+            address: "123 Main St, Downtown",
+            status: "completed",
+            estimatedTime: "08:30 AM",
+            actualTime: "08:25 AM",
+            notes: "Package delivered to front desk",
+          },
+          {
+            id: "stop-2",
+            address: "456 Oak Ave, Midtown",
+            status: "completed",
+            estimatedTime: "09:15 AM",
+            actualTime: "09:20 AM",
+          },
+          {
+            id: "stop-3",
+            address: "789 Pine St, Uptown",
+            status: "in-progress",
+            estimatedTime: "10:00 AM",
+          },
+          {
+            id: "stop-4",
+            address: "321 Elm Dr, Northside",
+            status: "pending",
+            estimatedTime: "10:45 AM",
+          },
+          {
+            id: "stop-5",
+            address: "654 Maple Ln, Eastside",
+            status: "pending",
+            estimatedTime: "11:30 AM",
+          },
+        ],
+      },
+      {
+        id: "route-2",
+        name: "Suburban Route B",
+        driver: "Sarah Johnson",
+        vehicle: "Van #205",
+        startTime: "09:00 AM",
+        estimatedDuration: "5 hours",
+        status: "active",
+        stops: [
+          {
+            id: "stop-6",
+            address: "111 Sunset Blvd, Westside",
+            status: "completed",
+            estimatedTime: "09:30 AM",
+            actualTime: "09:35 AM",
+          },
+          {
+            id: "stop-7",
+            address: "222 River Rd, Riverside",
+            status: "in-progress",
+            estimatedTime: "10:15 AM",
+          },
+          {
+            id: "stop-8",
+            address: "333 Hill St, Hillcrest",
+            status: "pending",
+            estimatedTime: "11:00 AM",
+          },
+        ],
+      },
+    ]
 
-    return () => clearInterval(timer)
+    setRoutes(mockRoutes)
   }, [])
 
-  useEffect(() => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          setCurrentLocation({
-            lat: position.coords.latitude,
-            lng: position.coords.longitude,
-          })
-        },
-        (error) => {
-          console.error("Error getting current location:", error)
-        },
-      )
-    }
-  }, [])
-
-  const calculateTrafficAwareETA = async (pendingStops: Stop[]) => {
-    if (!currentLocation || pendingStops.length === 0) {
-      return null
-    }
-
-    try {
-      const apiKey = await getGoogleMapsApiKey()
-
-      if (typeof window !== "undefined" && window.google && window.google.maps) {
-        const directionsService = new window.google.maps.DirectionsService()
-        const geocoder = new window.google.maps.Geocoder()
-
-        // Geocode all addresses first
-        const geocodePromises = pendingStops.map((stop) => {
-          return new Promise<any>((resolve) => {
-            geocoder.geocode({ address: stop.address }, (results: any, status: string) => {
-              if (status === "OK" && results && results[0]) {
-                resolve(results[0].geometry.location)
-              } else {
-                resolve(null)
-              }
-            })
-          })
-        })
-
-        const positions = await Promise.all(geocodePromises)
-        const validPositions = positions.filter((pos) => pos !== null)
-
-        if (validPositions.length === 0) return null
-
-        return new Promise<string>((resolve) => {
-          const origin = currentLocation
-          const destination = validPositions[validPositions.length - 1]
-          const waypoints = validPositions.slice(0, -1).map((pos) => ({ location: pos, stopover: true }))
-
-          directionsService.route(
-            {
-              origin,
-              destination,
-              waypoints,
-              travelMode: window.google.maps.TravelMode.DRIVING,
-              optimizeWaypoints: false,
-              drivingOptions: {
-                departureTime: new Date(),
-                trafficModel: window.google.maps.TrafficModel.BEST_GUESS,
-              },
-            },
-            (result: any, status: string) => {
-              if (status === "OK" && result) {
-                const route = result.routes[0]
-                let totalDurationInTraffic = 0
-
-                route.legs.forEach((leg: any) => {
-                  totalDurationInTraffic += leg.duration_in_traffic ? leg.duration_in_traffic.value : leg.duration.value
-                })
-
-                // Add estimated stop time (10 minutes per stop)
-                const stopTime = pendingStops.length * 10 * 60 // 10 minutes per stop in seconds
-                const totalTime = totalDurationInTraffic + stopTime
-
-                const hours = Math.floor(totalTime / 3600)
-                const minutes = Math.floor((totalTime % 3600) / 60)
-
-                if (hours > 0) {
-                  resolve(`${hours}h ${minutes}m`)
-                } else {
-                  resolve(`${minutes}m`)
-                }
-              } else {
-                resolve("")
-              }
-            },
-          )
-        })
-      }
-    } catch (error) {
-      console.error("Error calculating traffic-aware ETA:", error)
-    }
-
-    return null
-  }
-
-  // Calculate estimated completion time
-  useEffect(() => {
-    const pendingStops = stops.filter((s) => s.status === "pending")
-    if (pendingStops.length > 0) {
-      // Basic estimate: 10 minutes per stop + 5 minutes travel time between stops
-      const estimatedMinutes = pendingStops.length * 10 + (pendingStops.length - 1) * 5
-      const completion = new Date()
-      completion.setMinutes(completion.getMinutes() + estimatedMinutes)
-      setEstimatedCompletion(completion)
-
-      // Traffic-aware ETA calculation
-      if (currentLocation && typeof window !== "undefined" && window.google) {
-        calculateTrafficAwareETA(pendingStops).then((eta) => {
-          setTrafficAwareETA(eta)
-        })
-      }
-    } else {
-      setEstimatedCompletion(null)
-      setTrafficAwareETA(null)
-    }
-  }, [stops, currentLocation])
-
-  const totalStops = stops.length
-  const completedStops = stops.filter((s) => s.status === "done").length
-  const pendingStops = stops.filter((s) => s.status === "pending").length
-  const completionPercentage = totalStops > 0 ? Math.round((completedStops / totalStops) * 100) : 0
-
-  const formatTime = (date: Date) => {
-    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-  }
-
-  const formatETA = (eta: Date) => {
-    const now = new Date()
-    const diffMs = eta.getTime() - now.getTime()
-    const diffMins = Math.round(diffMs / (1000 * 60))
-
-    if (diffMins < 60) {
-      return `${diffMins}m`
-    } else {
-      const hours = Math.floor(diffMins / 60)
-      const mins = diffMins % 60
-      return `${hours}h ${mins}m`
+  const getStatusColor = (status: DeliveryStop["status"]) => {
+    switch (status) {
+      case "completed":
+        return "bg-green-100 text-green-800"
+      case "in-progress":
+        return "bg-blue-100 text-blue-800"
+      case "pending":
+        return "bg-gray-100 text-gray-800"
+      case "failed":
+        return "bg-red-100 text-red-800"
+      default:
+        return "bg-gray-100 text-gray-800"
     }
   }
 
-  const getTrafficAwareCompletionTime = () => {
-    if (!trafficAwareETA) return null
-
-    const now = new Date()
-    const etaMatch = trafficAwareETA.match(/(\d+)h\s*(\d+)m|(\d+)m/)
-
-    if (etaMatch) {
-      let totalMinutes = 0
-      if (etaMatch[1] && etaMatch[2]) {
-        // Format: "1h 30m"
-        totalMinutes = Number.parseInt(etaMatch[1]) * 60 + Number.parseInt(etaMatch[2])
-      } else if (etaMatch[3]) {
-        // Format: "30m"
-        totalMinutes = Number.parseInt(etaMatch[3])
-      }
-
-      const completion = new Date(now.getTime() + totalMinutes * 60000)
-      return completion
+  const getStatusIcon = (status: DeliveryStop["status"]) => {
+    switch (status) {
+      case "completed":
+        return <CheckCircle className="h-4 w-4 text-green-600" />
+      case "in-progress":
+        return <Truck className="h-4 w-4 text-blue-600" />
+      case "pending":
+        return <Clock className="h-4 w-4 text-gray-600" />
+      case "failed":
+        return <AlertCircle className="h-4 w-4 text-red-600" />
+      default:
+        return <Clock className="h-4 w-4 text-gray-600" />
     }
-
-    return null
   }
 
-  if (totalStops === 0) {
-    return null
-  }
-
-  const isCompleted = completedStops === totalStops
-  const isActive = pendingStops > 0
-  const trafficCompletion = getTrafficAwareCompletionTime()
-
-  if (compact) {
-    return (
-      <Card
-        className={`border-primary bg-primary/5 ${onNavigateToRoute ? "cursor-pointer hover:bg-primary/10 transition-colors" : ""} ${className}`}
-        onClick={onNavigateToRoute}
-      >
-        <CardContent className="p-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="relative">
-                <Truck
-                  className={`h-5 w-5 ${isCompleted ? "text-green-600" : "text-primary"} ${isActive ? "animate-pulse" : ""}`}
-                />
-                {isActive && (
-                  <div className="absolute -top-1 -right-1 w-2 h-2 bg-green-500 rounded-full animate-ping" />
-                )}
-              </div>
-              <div>
-                <p className="font-semibold text-sm">
-                  {isCompleted ? "Route Completed!" : activeRoute?.name || "Active Route"}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {completedStops}/{totalStops} deliveries • {completionPercentage}% complete
-                </p>
-              </div>
-            </div>
-            <div className="text-right">
-              {isCompleted ? (
-                <Badge variant="outline" className="bg-green-100 text-green-800 border-green-300">
-                  <CheckCircle className="h-3 w-3 mr-1" />
-                  Complete
-                </Badge>
-              ) : trafficCompletion ? (
-                <div className="text-xs">
-                  <p className="font-medium text-blue-600">ETA: {formatTime(trafficCompletion)}</p>
-                  <p className="text-muted-foreground">{trafficAwareETA} remaining</p>
-                </div>
-              ) : estimatedCompletion ? (
-                <div className="text-xs">
-                  <p className="font-medium">ETA: {formatTime(estimatedCompletion)}</p>
-                  <p className="text-muted-foreground">{formatETA(estimatedCompletion)} remaining</p>
-                </div>
-              ) : null}
-            </div>
-          </div>
-          <Progress value={completionPercentage} className="mt-3 h-2" />
-        </CardContent>
-      </Card>
-    )
+  const calculateProgress = (stops: DeliveryStop[]) => {
+    const completed = stops.filter((stop) => stop.status === "completed").length
+    return (completed / stops.length) * 100
   }
 
   return (
-    <Card
-      className={`border-primary bg-gradient-to-r from-primary/5 to-blue-50 ${onNavigateToRoute ? "cursor-pointer hover:from-primary/10 hover:to-blue-100 transition-colors" : ""} ${className}`}
-      onClick={onNavigateToRoute}
-    >
-      <CardContent className="p-6">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <div className="relative">
-              <div className={`p-3 rounded-full ${isCompleted ? "bg-green-100" : "bg-primary/10"}`}>
-                <Truck
-                  className={`h-6 w-6 ${isCompleted ? "text-green-600" : "text-primary"} ${isActive ? "animate-pulse" : ""}`}
-                />
-              </div>
-              {isActive && <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full animate-ping" />}
-            </div>
-            <div>
-              <h3 className="text-lg font-bold">
-                {isCompleted ? "Route Completed!" : activeRoute?.name || "Active Delivery Route"}
-              </h3>
-              <p className="text-sm text-muted-foreground">
-                {isCompleted ? "All deliveries have been completed successfully" : "Route in progress"}
-              </p>
-            </div>
-          </div>
-
-          <div className="text-right">
-            {isCompleted ? (
-              <Badge variant="outline" className="bg-green-100 text-green-800 border-green-300 px-3 py-1">
-                <CheckCircle className="h-4 w-4 mr-2" />
-                Complete
-              </Badge>
-            ) : (
-              <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 px-3 py-1">
-                <Clock className="h-4 w-4 mr-2" />
-                In Progress
-              </Badge>
-            )}
-          </div>
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-3xl font-bold tracking-tight">Delivery Progress</h2>
+          <p className="text-muted-foreground">Track your active delivery routes in real-time</p>
         </div>
+      </div>
 
-        {/* Flight-style progress bar */}
-        <div className="relative mb-4">
-          <Progress value={completionPercentage} className="h-3" />
-          <div className="flex justify-between mt-2 text-xs text-muted-foreground">
-            <span>Start</span>
-            <span className="font-medium">{completionPercentage}% Complete</span>
-            <span>Finish</span>
-          </div>
-        </div>
-
-        {/* Flight info style stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="text-center p-3 bg-white/50 rounded-lg">
-            <div className="flex items-center justify-center gap-1 mb-1">
-              <MapPin className="h-4 w-4 text-muted-foreground" />
-            </div>
-            <p className="text-lg font-bold">{completedStops}</p>
-            <p className="text-xs text-muted-foreground">Delivered</p>
-          </div>
-
-          <div className="text-center p-3 bg-white/50 rounded-lg">
-            <div className="flex items-center justify-center gap-1 mb-1">
-              <Clock className="h-4 w-4 text-muted-foreground" />
-            </div>
-            <p className="text-lg font-bold">{pendingStops}</p>
-            <p className="text-xs text-muted-foreground">Remaining</p>
-          </div>
-
-          <div className="text-center p-3 bg-white/50 rounded-lg">
-            <div className="flex items-center justify-center gap-1 mb-1">
-              <CheckCircle className="h-4 w-4 text-muted-foreground" />
-            </div>
-            <p className="text-lg font-bold">{completionPercentage}%</p>
-            <p className="text-xs text-muted-foreground">Complete</p>
-          </div>
-
-          <div className="text-center p-3 bg-white/50 rounded-lg">
-            <div className="flex items-center justify-center gap-1 mb-1">
-              <Truck className="h-4 w-4 text-muted-foreground" />
-            </div>
-            <p className="text-lg font-bold">
-              {trafficCompletion ? (
-                <span className="text-blue-600">{formatTime(trafficCompletion)}</span>
-              ) : estimatedCompletion ? (
-                formatTime(estimatedCompletion)
-              ) : (
-                "--:--"
-              )}
-            </p>
-            <p className="text-xs text-muted-foreground">{trafficAwareETA ? "Traffic ETA" : "ETA"}</p>
-          </div>
-        </div>
-
-        {/* Time remaining */}
-        {!isCompleted && (trafficCompletion || estimatedCompletion) && (
-          <div className="mt-4 space-y-2">
-            {trafficAwareETA && (
-              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-center">
-                <p className="text-sm text-blue-700">🚦 Traffic-aware time remaining</p>
-                <p className="text-xl font-bold text-blue-600">{trafficAwareETA}</p>
+      <div className="grid gap-6 md:grid-cols-2">
+        {routes.map((route) => (
+          <Card
+            key={route.id}
+            className="cursor-pointer hover:shadow-md transition-shadow"
+            onClick={() => setSelectedRoute(selectedRoute === route.id ? null : route.id)}
+          >
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2">
+                  <Truck className="h-5 w-5" />
+                  {route.name}
+                </CardTitle>
+                <Badge variant={route.status === "active" ? "default" : "secondary"}>{route.status}</Badge>
               </div>
-            )}
-            {estimatedCompletion && trafficAwareETA && (
-              <div className="p-2 bg-white/30 rounded-lg text-center">
-                <p className="text-xs text-muted-foreground">Basic estimate: {formatETA(estimatedCompletion)}</p>
+              <CardDescription>
+                Driver: {route.driver} • Vehicle: {route.vehicle}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="flex justify-between text-sm">
+                  <span>Started: {route.startTime}</span>
+                  <span>Est. Duration: {route.estimatedDuration}</span>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span>Progress</span>
+                    <span>{Math.round(calculateProgress(route.stops))}%</span>
+                  </div>
+                  <Progress value={calculateProgress(route.stops)} className="h-2" />
+                </div>
+
+                <div className="text-sm text-muted-foreground">
+                  {route.stops.filter((s) => s.status === "completed").length} of {route.stops.length} stops completed
+                </div>
               </div>
-            )}
-            {!trafficAwareETA && estimatedCompletion && (
-              <div className="p-3 bg-white/30 rounded-lg text-center">
-                <p className="text-sm text-muted-foreground">Estimated time remaining</p>
-                <p className="text-xl font-bold text-primary">{formatETA(estimatedCompletion)}</p>
-              </div>
-            )}
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {selectedRoute && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Route Details</CardTitle>
+            <CardDescription>
+              Detailed stop-by-stop progress for {routes.find((r) => r.id === selectedRoute)?.name}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {routes
+                .find((r) => r.id === selectedRoute)
+                ?.stops.map((stop, index) => (
+                  <div key={stop.id} className="flex items-start gap-4 p-4 border rounded-lg">
+                    <div className="flex-shrink-0 mt-1">{getStatusIcon(stop.status)}</div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="font-medium">Stop {index + 1}</span>
+                        <Badge className={getStatusColor(stop.status)}>{stop.status}</Badge>
+                      </div>
+                      <div className="flex items-center gap-1 text-sm text-muted-foreground mb-1">
+                        <MapPin className="h-3 w-3" />
+                        {stop.address}
+                      </div>
+                      <div className="flex items-center gap-4 text-sm">
+                        <span>Est: {stop.estimatedTime}</span>
+                        {stop.actualTime && <span className="text-green-600">Actual: {stop.actualTime}</span>}
+                      </div>
+                      {stop.notes && <p className="text-sm text-muted-foreground mt-2">{stop.notes}</p>}
+                    </div>
+                  </div>
+                ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Route Map</CardTitle>
+          <CardDescription>Visual representation of delivery routes</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="h-64 bg-gray-100 rounded-lg flex items-center justify-center">
+            <div className="text-center text-muted-foreground">
+              <MapPin className="h-12 w-12 mx-auto mb-2" />
+              <p>Interactive map view</p>
+              <p className="text-sm">Map integration available with Google Maps API</p>
+            </div>
           </div>
-        )}
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+    </div>
   )
 }

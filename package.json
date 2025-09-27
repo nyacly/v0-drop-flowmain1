@@ -50,7 +50,7 @@
     "@radix-ui/react-toggle-group": "latest",
     "@radix-ui/react-tooltip": "latest",
     "@react-navigation/drawer": "latest",
-    "@stackframe/stack": "latest",
+    "@stackframe/stack": "2.8.39",
     "@testing-library/react-native": "latest",
     "@tidbcloud/serverless": "latest",
     "@types/better-sqlite3": "latest",

@@ -1,340 +1,43 @@
 "use client"
 
-import type React from "react"
-
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { useAuth } from "@/components/auth-provider"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { User, Settings, LogOut, Truck } from "lucide-react"
-import { useRouter } from "next/navigation"
-
+import { Badge } from "@/components/ui/badge"
+import { Truck, MapPin, Route, BarChart3, User, LogOut, Settings } from "lucide-react"
 import { AddressManager } from "@/components/address-manager"
 import { RouteManager } from "@/components/route-manager"
 import { DeliveryProgress } from "@/components/delivery-progress"
-import { useAddresses } from "@/hooks/use-addresses"
+import { AccountProfile } from "@/components/account-profile"
+import { AuthModal } from "@/components/auth/auth-modal"
+import { useAuth } from "@/hooks/useAuth"
+
+type ViewType = "dashboard" | "addresses" | "routes" | "progress" | "account"
 
 export default function DropFlowApp() {
-  const { user, login, logout, isLoading, isAuthenticated } = useAuth()
-  const router = useRouter()
-  const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
-  const [confirmPassword, setConfirmPassword] = useState("")
-  const [firstName, setFirstName] = useState("")
-  const [lastName, setLastName] = useState("")
-  const [loginError, setLoginError] = useState("")
-  const [signupError, setSignupError] = useState("")
-  const [currentView, setCurrentView] = useState<"dashboard" | "addresses" | "routes" | "progress">("dashboard")
+  const [currentView, setCurrentView] = useState<ViewType>("dashboard")
+  const [showAuthModal, setShowAuthModal] = useState(false)
+  const { user, logout, isLoading } = useAuth()
 
-  const { addresses, routes } = useAddresses()
-
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setLoginError("")
-    try {
-      await login(email, password)
-    } catch (error) {
-      setLoginError("Login failed. Please try again.")
+  // Show auth modal if user is not logged in
+  useEffect(() => {
+    if (!isLoading && !user) {
+      setShowAuthModal(true)
     }
-  }
+  }, [user, isLoading])
 
-  const handleSignup = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setSignupError("")
-
-    if (password !== confirmPassword) {
-      setSignupError("Passwords do not match.")
-      return
-    }
-
-    if (password.length < 6) {
-      setSignupError("Password must be at least 6 characters long.")
-      return
-    }
-
-    try {
-      await login(email, password)
-    } catch (error) {
-      setSignupError("Signup failed. Please try again.")
-    }
-  }
-
-  const resetForm = () => {
-    setEmail("")
-    setPassword("")
-    setConfirmPassword("")
-    setFirstName("")
-    setLastName("")
-    setLoginError("")
-    setSignupError("")
+  const handleSignOut = async () => {
+    await logout()
+    setCurrentView("dashboard")
+    setShowAuthModal(true)
   }
 
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600 mx-auto mb-4"></div>
+          <Truck className="h-12 w-12 text-red-600 mx-auto mb-4 animate-pulse" />
           <p className="text-muted-foreground">Loading DropFlow...</p>
-        </div>
-      </div>
-    )
-  }
-
-  if (!isAuthenticated) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="w-full max-w-md mx-auto p-6">
-          <div className="text-center mb-8">
-            <div className="flex items-center justify-center gap-2 mb-4">
-              <Truck className="h-10 w-10 text-red-600" />
-              <h1 className="text-4xl font-bold text-red-600">DropFlow</h1>
-            </div>
-            <p className="text-xl text-muted-foreground mb-2">Smart Delivery Route Optimization</p>
-            <p className="text-sm text-muted-foreground">Sign in or create an account to get started</p>
-          </div>
-
-          <Card>
-            <CardContent className="p-0">
-              <Tabs defaultValue="signin" onValueChange={resetForm}>
-                <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="signin">Sign In</TabsTrigger>
-                  <TabsTrigger value="signup">Sign Up</TabsTrigger>
-                </TabsList>
-
-                <TabsContent value="signin" className="p-6">
-                  <div className="space-y-2 mb-4">
-                    <h3 className="text-lg font-semibold">Welcome back</h3>
-                    <p className="text-sm text-muted-foreground">Enter your credentials to access your dashboard</p>
-                  </div>
-                  <form onSubmit={handleLogin} className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="signin-email">Email</Label>
-                      <Input
-                        id="signin-email"
-                        type="email"
-                        placeholder="Enter your email"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        required
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="signin-password">Password</Label>
-                      <Input
-                        id="signin-password"
-                        type="password"
-                        placeholder="Enter your password"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        required
-                      />
-                    </div>
-                    {loginError && <p className="text-sm text-red-600">{loginError}</p>}
-                    <Button type="submit" className="w-full bg-red-600 hover:bg-red-700">
-                      Sign In
-                    </Button>
-                  </form>
-                  <div className="mt-4 text-center">
-                    <p className="text-sm text-muted-foreground">Demo: Use any email and password to sign in</p>
-                  </div>
-                </TabsContent>
-
-                <TabsContent value="signup" className="p-6">
-                  <div className="space-y-2 mb-4">
-                    <h3 className="text-lg font-semibold">Create account</h3>
-                    <p className="text-sm text-muted-foreground">Get started with your delivery optimization</p>
-                  </div>
-                  <form onSubmit={handleSignup} className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="firstName">First Name</Label>
-                        <Input
-                          id="firstName"
-                          type="text"
-                          placeholder="John"
-                          value={firstName}
-                          onChange={(e) => setFirstName(e.target.value)}
-                          required
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="lastName">Last Name</Label>
-                        <Input
-                          id="lastName"
-                          type="text"
-                          placeholder="Doe"
-                          value={lastName}
-                          onChange={(e) => setLastName(e.target.value)}
-                          required
-                        />
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="signup-email">Email</Label>
-                      <Input
-                        id="signup-email"
-                        type="email"
-                        placeholder="john@example.com"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        required
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="signup-password">Password</Label>
-                      <Input
-                        id="signup-password"
-                        type="password"
-                        placeholder="Create a password"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        required
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="confirm-password">Confirm Password</Label>
-                      <Input
-                        id="confirm-password"
-                        type="password"
-                        placeholder="Confirm your password"
-                        value={confirmPassword}
-                        onChange={(e) => setConfirmPassword(e.target.value)}
-                        required
-                      />
-                    </div>
-                    {signupError && <p className="text-sm text-red-600">{signupError}</p>}
-                    <Button type="submit" className="w-full bg-red-600 hover:bg-red-700">
-                      Create Account
-                    </Button>
-                  </form>
-                  <div className="mt-4 text-center">
-                    <p className="text-sm text-muted-foreground">Demo: Use any valid email and password</p>
-                  </div>
-                </TabsContent>
-              </Tabs>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-    )
-  }
-
-  if (currentView === "addresses") {
-    return (
-      <div className="min-h-screen bg-background">
-        <div className="container mx-auto py-8 px-4">
-          <div className="flex items-center justify-between mb-8">
-            <div>
-              <Button variant="ghost" onClick={() => setCurrentView("dashboard")} className="mb-4">
-                ← Back to Dashboard
-              </Button>
-              <div className="flex items-center gap-2 mb-2">
-                <Truck className="h-8 w-8 text-red-600" />
-                <h1 className="text-3xl font-bold">Address Manager</h1>
-              </div>
-              <p className="text-muted-foreground">Manage your delivery addresses and locations</p>
-            </div>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="icon">
-                  <User className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => router.push("/account")}>
-                  <Settings className="mr-2 h-4 w-4" />
-                  Account Settings
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={logout}>
-                  <LogOut className="mr-2 h-4 w-4" />
-                  Logout
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-          <AddressManager />
-        </div>
-      </div>
-    )
-  }
-
-  if (currentView === "routes") {
-    return (
-      <div className="min-h-screen bg-background">
-        <div className="container mx-auto py-8 px-4">
-          <div className="flex items-center justify-between mb-8">
-            <div>
-              <Button variant="ghost" onClick={() => setCurrentView("dashboard")} className="mb-4">
-                ← Back to Dashboard
-              </Button>
-              <div className="flex items-center gap-2 mb-2">
-                <Truck className="h-8 w-8 text-red-600" />
-                <h1 className="text-3xl font-bold">Route Manager</h1>
-              </div>
-              <p className="text-muted-foreground">Create and optimize your delivery routes</p>
-            </div>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="icon">
-                  <User className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => router.push("/account")}>
-                  <Settings className="mr-2 h-4 w-4" />
-                  Account Settings
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={logout}>
-                  <LogOut className="mr-2 h-4 w-4" />
-                  Logout
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-          <RouteManager />
-        </div>
-      </div>
-    )
-  }
-
-  if (currentView === "progress") {
-    return (
-      <div className="min-h-screen bg-background">
-        <div className="container mx-auto py-8 px-4">
-          <div className="flex items-center justify-between mb-8">
-            <div>
-              <Button variant="ghost" onClick={() => setCurrentView("dashboard")} className="mb-4">
-                ← Back to Dashboard
-              </Button>
-              <div className="flex items-center gap-2 mb-2">
-                <Truck className="h-8 w-8 text-red-600" />
-                <h1 className="text-3xl font-bold">Delivery Progress</h1>
-              </div>
-              <p className="text-muted-foreground">Track your active deliveries in real-time</p>
-            </div>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="icon">
-                  <User className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => router.push("/account")}>
-                  <Settings className="mr-2 h-4 w-4" />
-                  Account Settings
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={logout}>
-                  <LogOut className="mr-2 h-4 w-4" />
-                  Logout
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-          <DeliveryProgress />
         </div>
       </div>
     )
@@ -342,121 +45,206 @@ export default function DropFlowApp() {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="container mx-auto py-8 px-4">
-        <div className="flex items-center justify-between mb-8">
-          <div className="text-center flex-1">
-            <div className="flex items-center justify-center gap-2 mb-2">
-              <Truck className="h-10 w-10 text-red-600" />
-              <h1 className="text-4xl font-bold text-red-600">DropFlow</h1>
+      {/* Header */}
+      <header className="border-b bg-card">
+        <div className="container mx-auto px-4 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Truck className="h-8 w-8 text-red-600" />
+              <h1 className="text-2xl font-bold text-red-600">DropFlow</h1>
+              <Badge variant="secondary" className="ml-2">
+                Pro
+              </Badge>
             </div>
-            <p className="text-xl text-muted-foreground">
-              Welcome back, {user?.firstName || user?.displayName || user?.email?.split("@")[0] || "nyachy"}!
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="icon">
+
+            {user && (
+              <div className="flex items-center gap-4">
+                <span className="text-sm text-muted-foreground">Welcome, {user.displayName || user.primaryEmail}</span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setCurrentView("account")}
+                  className="flex items-center gap-2"
+                >
                   <User className="h-4 w-4" />
+                  Account
                 </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => router.push("/account")}>
-                  <Settings className="mr-2 h-4 w-4" />
-                  Account Settings
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={logout}>
-                  <LogOut className="mr-2 h-4 w-4" />
-                  Logout
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+                <Button variant="ghost" size="sm" onClick={handleSignOut} className="flex items-center gap-2">
+                  <LogOut className="h-4 w-4" />
+                  Sign Out
+                </Button>
+              </div>
+            )}
           </div>
         </div>
+      </header>
 
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          <Card className="border-red-200 bg-red-50">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">📍 Address Manager</CardTitle>
-              <CardDescription>Manage delivery addresses and locations</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground mb-4">
-                Add, edit, and organize your delivery addresses for route optimization.
-              </p>
-              <Button className="w-full" onClick={() => setCurrentView("addresses")}>
-                Manage Addresses
-              </Button>
-            </CardContent>
-          </Card>
+      <div className="container mx-auto py-8 px-4">
+        {/* Navigation */}
+        {user && (
+          <div className="flex flex-wrap gap-2 mb-8">
+            <Button
+              variant={currentView === "dashboard" ? "default" : "outline"}
+              onClick={() => setCurrentView("dashboard")}
+              className="flex items-center gap-2"
+            >
+              <BarChart3 className="h-4 w-4" />
+              Dashboard
+            </Button>
+            <Button
+              variant={currentView === "addresses" ? "default" : "outline"}
+              onClick={() => setCurrentView("addresses")}
+              className="flex items-center gap-2"
+            >
+              <MapPin className="h-4 w-4" />
+              Addresses
+            </Button>
+            <Button
+              variant={currentView === "routes" ? "default" : "outline"}
+              onClick={() => setCurrentView("routes")}
+              className="flex items-center gap-2"
+            >
+              <Route className="h-4 w-4" />
+              Routes
+            </Button>
+            <Button
+              variant={currentView === "progress" ? "default" : "outline"}
+              onClick={() => setCurrentView("progress")}
+              className="flex items-center gap-2"
+            >
+              <Truck className="h-4 w-4" />
+              Progress
+            </Button>
+            <Button
+              variant={currentView === "account" ? "default" : "outline"}
+              onClick={() => setCurrentView("account")}
+              className="flex items-center gap-2"
+            >
+              <Settings className="h-4 w-4" />
+              Account
+            </Button>
+          </div>
+        )}
 
-          <Card className="border-blue-200 bg-blue-50">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">🗺️ Route Manager</CardTitle>
-              <CardDescription>Create and optimize delivery routes</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground mb-4">
-                Generate optimized routes with AI-powered planning and traffic data.
-              </p>
-              <Button className="w-full" onClick={() => setCurrentView("routes")}>
-                Create Routes
-              </Button>
-            </CardContent>
-          </Card>
-
-          <Card className="border-green-200 bg-green-50">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">📊 Delivery Progress</CardTitle>
-              <CardDescription>Track active deliveries in real-time</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground mb-4">
-                Monitor delivery progress and get live updates on your routes.
-              </p>
-              <Button className="w-full" onClick={() => setCurrentView("progress")}>
-                View Progress
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
-
-        <Card className="mt-6">
-          <CardHeader>
-            <CardTitle>Quick Stats</CardTitle>
-            <CardDescription>Your delivery performance overview</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="text-center">
-                <div className="text-2xl font-bold text-red-600">
-                  {routes.filter((route) => route.status === "active").length}
+        {/* Main Content */}
+        {user ? (
+          <>
+            {currentView === "dashboard" && (
+              <div className="space-y-6">
+                <div className="text-center mb-8">
+                  <h2 className="text-3xl font-bold mb-2">Smart Delivery Route Optimization</h2>
+                  <p className="text-xl text-muted-foreground">
+                    Optimize your delivery routes with AI-powered planning
+                  </p>
                 </div>
-                <div className="text-sm text-muted-foreground">Active Routes</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-blue-600">{addresses.length}</div>
-                <div className="text-sm text-muted-foreground">Addresses</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-green-600">
-                  {routes.filter((route) => route.status === "completed").length}
+
+                <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                  <Card
+                    className="border-red-200 bg-red-50 hover:shadow-md transition-shadow cursor-pointer"
+                    onClick={() => setCurrentView("addresses")}
+                  >
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <MapPin className="h-5 w-5 text-red-600" />
+                        Address Manager
+                      </CardTitle>
+                      <CardDescription>Manage delivery addresses and locations</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-sm text-muted-foreground mb-4">
+                        Add, edit, and organize your delivery addresses for route optimization.
+                      </p>
+                      <Button className="w-full bg-red-600 hover:bg-red-700">Manage Addresses</Button>
+                    </CardContent>
+                  </Card>
+
+                  <Card
+                    className="border-blue-200 bg-blue-50 hover:shadow-md transition-shadow cursor-pointer"
+                    onClick={() => setCurrentView("routes")}
+                  >
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Route className="h-5 w-5 text-blue-600" />
+                        Route Manager
+                      </CardTitle>
+                      <CardDescription>Create and optimize delivery routes</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-sm text-muted-foreground mb-4">
+                        Generate optimized routes with AI-powered planning and traffic data.
+                      </p>
+                      <Button className="w-full bg-blue-600 hover:bg-blue-700">Create Routes</Button>
+                    </CardContent>
+                  </Card>
+
+                  <Card
+                    className="border-green-200 bg-green-50 hover:shadow-md transition-shadow cursor-pointer"
+                    onClick={() => setCurrentView("progress")}
+                  >
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Truck className="h-5 w-5 text-green-600" />
+                        Delivery Progress
+                      </CardTitle>
+                      <CardDescription>Track active deliveries in real-time</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-sm text-muted-foreground mb-4">
+                        Monitor delivery progress and get live updates on your routes.
+                      </p>
+                      <Button className="w-full bg-green-600 hover:bg-green-700">View Progress</Button>
+                    </CardContent>
+                  </Card>
                 </div>
-                <div className="text-sm text-muted-foreground">Completed</div>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Quick Stats</CardTitle>
+                    <CardDescription>Your delivery performance overview</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div className="text-center">
+                        <div className="text-2xl font-bold text-red-600">2</div>
+                        <div className="text-sm text-muted-foreground">Active Routes</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-2xl font-bold text-blue-600">15</div>
+                        <div className="text-sm text-muted-foreground">Addresses</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-2xl font-bold text-green-600">8</div>
+                        <div className="text-sm text-muted-foreground">Completed</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-2xl font-bold text-orange-600">94%</div>
+                        <div className="text-sm text-muted-foreground">Efficiency</div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
               </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-orange-600">
-                  {routes.length > 0
-                    ? Math.round((routes.filter((route) => route.status === "completed").length / routes.length) * 100)
-                    : 0}
-                  %
-                </div>
-                <div className="text-sm text-muted-foreground">Efficiency</div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            )}
+
+            {currentView === "addresses" && <AddressManager />}
+            {currentView === "routes" && <RouteManager />}
+            {currentView === "progress" && <DeliveryProgress />}
+            {currentView === "account" && <AccountProfile />}
+          </>
+        ) : (
+          <div className="text-center py-12">
+            <Truck className="h-16 w-16 text-red-600 mx-auto mb-4" />
+            <h2 className="text-2xl font-bold mb-2">Welcome to DropFlow</h2>
+            <p className="text-muted-foreground mb-6">Please sign in to access your delivery management dashboard</p>
+            <Button onClick={() => setShowAuthModal(true)} className="bg-red-600 hover:bg-red-700">
+              Sign In to Continue
+            </Button>
+          </div>
+        )}
       </div>
+
+      {/* Auth Modal */}
+      <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />
     </div>
   )
 }
