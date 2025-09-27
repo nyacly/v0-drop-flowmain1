@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { MapPin, CheckCircle, Clock, Plus, AlertCircle } from "lucide-react"
+import { getGoogleMapsApiKey } from "@/lib/google-maps"
 
 // Mock data and types
 interface Stop {
@@ -215,122 +216,138 @@ interface RoutePlanningProps {
   removeStop: (id: string) => void
 }
 
-function InteractiveMapView({ stops }: { stops: Stop[] }) {
+function GoogleMapView({ stops }: { stops: Stop[] }) {
   const mapRef = useRef<HTMLDivElement>(null)
-  const [mapInstance, setMapInstance] = useState<any>(null)
-  const [isLoading, setIsLoading] = useState(true)
-
-  useEffect(() => {
-    if (typeof window === "undefined" || !mapRef.current) return
-
-    // Load Leaflet dynamically
-    const loadLeaflet = async () => {
-      try {
-        // Add Leaflet CSS
-        if (!document.querySelector('link[href*="leaflet"]')) {
-          const link = document.createElement("link")
-          link.rel = "stylesheet"
-          link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-          document.head.appendChild(link)
-        }
-
-        // Load Leaflet JS
-        const L = await import("https://unpkg.com/leaflet@1.9.4/dist/leaflet-src.esm.js")
-
-        // Brisbane coordinates as center
-        const map = L.map(mapRef.current).setView([-27.4698, 153.0251], 11)
-
-        // Add OpenStreetMap tiles
-        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-          attribution: "© OpenStreetMap contributors",
-        }).addTo(map)
-
-        // Add markers for each stop
-        const markers: any[] = []
-        stops.forEach((stop, index) => {
-          // Use approximate coordinates around Brisbane for demo
-          const lat = -27.4698 + (Math.random() - 0.5) * 0.2
-          const lng = 153.0251 + (Math.random() - 0.5) * 0.2
-
-          const isCompleted = stop.status === "done"
-          const markerColor = isCompleted ? "#22c55e" : "#ef4444"
-
-          // Create custom marker HTML
-          const markerHtml = `
-            <div style="
-              background: ${markerColor};
-              width: 30px;
-              height: 30px;
-              border-radius: 50%;
-              border: 3px solid white;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              color: white;
-              font-weight: bold;
-              font-size: 14px;
-              box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-            ">${index + 1}</div>
-          `
-
-          const marker = L.marker([lat, lng], {
-            icon: L.divIcon({
-              html: markerHtml,
-              className: "custom-marker",
-              iconSize: [30, 30],
-              iconAnchor: [15, 15],
-            }),
-          }).addTo(map)
-
-          marker.bindPopup(`
-            <div style="padding: 8px;">
-              <strong>Stop ${index + 1}</strong><br/>
-              ${stop.address}<br/>
-              <span style="color: ${markerColor}; font-weight: bold;">
-                ${isCompleted ? "✓ Completed" : "⏳ Pending"}
-              </span>
-            </div>
-          `)
-
-          markers.push(marker)
-        })
-
-        // Draw route line between markers if there are multiple stops
-        if (markers.length > 1) {
-          const latlngs = markers.map((marker) => marker.getLatLng())
-          L.polyline(latlngs, {
-            color: "#6366f1",
-            weight: 4,
-            opacity: 0.8,
-            dashArray: "10, 5",
-          }).addTo(map)
-        }
-
-        // Fit map to show all markers
-        if (markers.length > 0) {
-          const group = new L.featureGroup(markers)
-          map.fitBounds(group.getBounds().pad(0.1))
-        }
-
-        setMapInstance(map)
-        setIsLoading(false)
-      } catch (error) {
-        console.error("Failed to load map:", error)
-        setIsLoading(false)
-      }
-    }
-
-    loadLeaflet()
-
-    return () => {
-      if (mapInstance) {
-        mapInstance.remove()
-      }
-    }
-  }, [stops])
+  const mapInstanceRef = useRef<any>(null)
+  const markersRef = useRef<any[]>([])
+  const directionsServiceRef = useRef<any>(null)
+  const directionsRendererRef = useRef<any>(null)
+  const [isLoaded, setIsLoaded] = useState(false)
+  const [apiKey, setApiKey] = useState<string>("")
 
   const pendingStops = stops.filter((s) => s.status === "pending")
   const completedStops = stops.filter((s) => s.status === "done")
+
+  useEffect(() => {
+    const fetchApiKey = async () => {
+      try {
+        const key = await getGoogleMapsApiKey()
+        setApiKey(key)
+      } catch (error) {
+        console.error("Failed to fetch Google Maps API key:", error)
+      }
+    }
+    fetchApiKey()
+  }, [])
+
+  useEffect(() => {
+    if (apiKey && typeof window !== "undefined" && !window.google) {
+      const script = document.createElement("script")
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`
+      script.async = true
+      script.defer = true
+      script.onload = () => setIsLoaded(true)
+      document.head.appendChild(script)
+    } else if (window.google) {
+      setIsLoaded(true)
+    }
+  }, [apiKey])
+
+  useEffect(() => {
+    if (isLoaded && mapRef.current && !mapInstanceRef.current && window.google) {
+      mapInstanceRef.current = new window.google.maps.Map(mapRef.current, {
+        zoom: 10,
+        center: { lat: 40.7128, lng: -74.006 }, // Default to NYC
+        mapTypeId: window.google.maps.MapTypeId.ROADMAP,
+      })
+
+      directionsServiceRef.current = new window.google.maps.DirectionsService()
+      directionsRendererRef.current = new window.google.maps.DirectionsRenderer({
+        suppressMarkers: false,
+        polylineOptions: {
+          strokeColor: "#3b82f6",
+          strokeWeight: 4,
+        },
+      })
+      directionsRendererRef.current.setMap(mapInstanceRef.current)
+    }
+  }, [isLoaded])
+
+  useEffect(() => {
+    if (!isLoaded || !mapInstanceRef.current || stops.length === 0 || !window.google) return
+
+    markersRef.current.forEach((marker) => marker.setMap(null))
+    markersRef.current = []
+
+    const geocoder = new window.google.maps.Geocoder()
+    const bounds = new window.google.maps.LatLngBounds()
+
+    const geocodePromises = stops.map((stop, index) => {
+      return new Promise<any>((resolve) => {
+        geocoder.geocode({ address: stop.address }, (results: any, status: string) => {
+          if (status === "OK" && results && results[0]) {
+            const position = results[0].geometry.location
+            bounds.extend(position)
+
+            const marker = new window.google.maps.Marker({
+              position,
+              map: mapInstanceRef.current,
+              title: `Stop ${index + 1}: ${stop.address}`,
+              label: {
+                text: (index + 1).toString(),
+                color: "white",
+                fontWeight: "bold",
+              },
+              icon: {
+                path: window.google.maps.SymbolPath.CIRCLE,
+                scale: 20,
+                fillColor: stop.status === "done" ? "#10b981" : "#ef4444",
+                fillOpacity: 1,
+                strokeColor: "white",
+                strokeWeight: 3,
+              },
+            })
+
+            markersRef.current.push(marker)
+            resolve(position)
+          } else {
+            console.error(`Geocoding failed for ${stop.address}: ${status}`)
+            resolve(null)
+          }
+        })
+      })
+    })
+
+    Promise.all(geocodePromises).then((positions) => {
+      const validPositions = positions.filter((pos) => pos !== null)
+
+      if (validPositions.length > 0) {
+        mapInstanceRef.current!.fitBounds(bounds)
+
+        if (validPositions.length > 1 && directionsServiceRef.current && directionsRendererRef.current) {
+          const waypoints = validPositions.slice(1, -1).map((pos) => ({
+            location: pos,
+            stopover: true,
+          }))
+
+          directionsServiceRef.current.route(
+            {
+              origin: validPositions[0],
+              destination: validPositions[validPositions.length - 1],
+              waypoints,
+              travelMode: window.google.maps.TravelMode.DRIVING,
+              optimizeWaypoints: true,
+            },
+            (result: any, status: string) => {
+              if (status === "OK" && result) {
+                directionsRendererRef.current!.setDirections(result)
+              }
+            },
+          )
+        }
+      }
+    })
+  }, [isLoaded, stops])
 
   const openInGoogleMaps = () => {
     const addresses = stops.map((stop) => encodeURIComponent(stop.address))
@@ -358,7 +375,6 @@ function InteractiveMapView({ stops }: { stops: Stop[] }) {
 
   return (
     <div className="space-y-4">
-      {/* Navigation buttons */}
       {stops.length > 0 && (
         <div className="flex flex-wrap gap-2 mb-4">
           <Button onClick={openInGoogleMaps} className="flex items-center gap-2 bg-transparent" variant="outline">
@@ -376,47 +392,48 @@ function InteractiveMapView({ stops }: { stops: Stop[] }) {
         </div>
       )}
 
-      {/* Interactive Map Container */}
       <div className="relative">
-        <div
-          ref={mapRef}
-          style={{
-            width: "100%",
-            height: "400px",
-            borderRadius: "12px",
-            border: "1px solid #e2e8f0",
-            overflow: "hidden",
-          }}
-        />
+        {stops.length > 0 ? (
+          <div className="w-full h-96 rounded-lg border border-gray-200 relative overflow-hidden">
+            {(!isLoaded || !apiKey) && (
+              <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
+                <div className="text-center">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                  <p className="text-sm text-gray-600">
+                    {!apiKey ? "Loading API configuration..." : "Loading Google Maps..."}
+                  </p>
+                </div>
+              </div>
+            )}
+            <div ref={mapRef} className="w-full h-full" />
 
-        {isLoading && (
-          <div className="absolute inset-0 bg-gray-100 rounded-lg flex items-center justify-center">
+            <div className="absolute top-4 left-4 bg-white p-3 rounded-lg shadow-lg border">
+              <div className="font-semibold text-sm mb-2">Route Map</div>
+              <div className="space-y-1 text-xs">
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-red-500"></div>
+                  <span>{pendingStops.length} Pending</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                  <span>{completedStops.length} Completed</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="absolute bottom-4 right-4 bg-blue-600 text-white px-3 py-2 rounded-lg text-sm font-medium shadow-lg">
+              {stops.length} Stop{stops.length !== 1 ? "s" : ""}
+            </div>
+          </div>
+        ) : (
+          <div className="w-full h-96 bg-gradient-to-br from-purple-400 to-blue-500 rounded-lg flex items-center justify-center text-white">
             <div className="text-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
-              <p className="text-sm text-gray-600">Loading interactive map...</p>
+              <div className="text-6xl mb-4">🗺️</div>
+              <h3 className="text-xl font-semibold mb-2">No Stops Added</h3>
+              <p className="text-sm opacity-90">Add delivery addresses to see them on the map</p>
             </div>
           </div>
         )}
-
-        {/* Map legend overlay */}
-        <div className="absolute top-4 left-4 bg-white p-3 rounded-lg shadow-lg z-[1000]">
-          <div className="font-semibold text-sm mb-2">Route Overview</div>
-          <div className="space-y-1 text-xs">
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-red-500"></div>
-              <span>{pendingStops.length} Pending</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-green-500"></div>
-              <span>{completedStops.length} Completed</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Stop count indicator */}
-        <div className="absolute bottom-4 right-4 bg-blue-600 text-white px-3 py-1 rounded-md text-sm font-medium z-[1000]">
-          {stops.length} Stop{stops.length !== 1 ? "s" : ""}
-        </div>
       </div>
     </div>
   )
@@ -487,10 +504,10 @@ function RoutePlanning({ stops, updateStopStatus, removeStop }: RoutePlanningPro
         <Card>
           <CardHeader>
             <CardTitle>Route Map</CardTitle>
-            <CardDescription>Interactive map with turn-by-turn navigation</CardDescription>
+            <CardDescription>Visual overview of your delivery stops</CardDescription>
           </CardHeader>
           <CardContent>
-            <InteractiveMapView stops={stops} />
+            <GoogleMapView stops={stops} />
           </CardContent>
         </Card>
       )}
@@ -538,7 +555,6 @@ function RoutePlanning({ stops, updateStopStatus, removeStop }: RoutePlanningPro
   )
 }
 
-// Main App Component
 export default function DropFlowApp() {
   const { user } = useAuth()
   const { stops, addStop, removeStop, updateStopStatus } = useStops()
@@ -580,7 +596,6 @@ export default function DropFlowApp() {
   return (
     <div className="min-h-screen bg-background">
       <div className="container mx-auto py-8 px-4">
-        {/* Header */}
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold text-red-600 mb-2">🚛 DropFlow</h1>
           <p className="text-xl text-muted-foreground">
@@ -588,7 +603,6 @@ export default function DropFlowApp() {
           </p>
         </div>
 
-        {/* Quick Start Card */}
         <Card className="mb-6 border-red-200 bg-red-50">
           <CardHeader>
             <CardTitle>Quick Start</CardTitle>
@@ -621,7 +635,6 @@ export default function DropFlowApp() {
           </CardContent>
         </Card>
 
-        {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
           <Card>
             <CardContent className="pt-6">
@@ -655,7 +668,6 @@ export default function DropFlowApp() {
           </Card>
         </div>
 
-        {/* Features Card */}
         <Card className="mb-6">
           <CardHeader>
             <CardTitle>Features</CardTitle>
@@ -687,7 +699,6 @@ export default function DropFlowApp() {
           </CardContent>
         </Card>
 
-        {/* Subscription Status */}
         <Card className="mb-6">
           <CardHeader>
             <CardTitle>Account Status</CardTitle>
@@ -705,7 +716,6 @@ export default function DropFlowApp() {
           </CardContent>
         </Card>
 
-        {/* Address Import Dialog */}
         <Dialog open={showAddressImport} onOpenChange={setShowAddressImport}>
           <DialogTrigger asChild>
             <Button variant="outline" className="w-full bg-transparent">

@@ -86,6 +86,7 @@
     "fs": "latest",
     "geist": "latest",
     "gel": "latest",
+    "google-maps": "4.3.3",
     "input-otp": "latest",
     "knex": "latest",
     "kysely": "latest",

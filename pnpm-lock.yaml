@@ -16,7 +16,7 @@ importers:
         version: 7.28.4
       '@cloudflare/workers-types':
         specifier: latest
-        version: 4.20250926.0
+        version: 4.20250927.0
       '@electric-sql/pglite':
         specifier: latest
         version: 0.3.10
@@ -37,7 +37,7 @@ importers:
         version: 1.0.1
       '@op-engineering/op-sqlite':
         specifier: latest
-        version: 15.0.4(react-native@0.81.4(@babel/core@7.28.4)(@types/react@19.0.0)(bufferutil@4.0.9)(react@19.0.0))(react@19.0.0)
+        version: 15.0.5(react-native@0.81.4(@babel/core@7.28.4)(@types/react@19.0.0)(bufferutil@4.0.9)(react@19.0.0))(react@19.0.0)
       '@opentelemetry/api':
         specifier: latest
         version: 1.9.0
@@ -190,10 +190,10 @@ importers:
         version: 4.1.0
       drizzle-kit:
         specifier: latest
-        version: 0.31.4
+        version: 0.31.5
       drizzle-orm:
         specifier: latest
-        version: 0.44.5(0b9d593a550d4d2045bb0a02fc9b7216)
+        version: 0.44.5(4a37b8fb6d82734e866fa960cad35a89)
       embla-carousel-react:
         specifier: latest
         version: 8.6.0(react@19.0.0)
@@ -239,6 +239,9 @@ importers:
       gel:
         specifier: latest
         version: 2.1.1
+      google-maps:
+        specifier: 4.3.3
+        version: 4.3.3
       input-otp:
         specifier: latest
         version: 1.4.2(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
@@ -1013,8 +1016,8 @@ packages:
     resolution: {integrity: sha512-bkFqkLhh3pMBUQQkpVgWDWq/lqzc2678eUyDlTBhRqhCHFguYYGM0Efga7tYk4TogG/3x0EEl66/OQ+WGbWB/Q==}
     engines: {node: '>=6.9.0'}
 
-  '@cloudflare/workers-types@4.20250926.0':
-    resolution: {integrity: sha512-DfnfgmV7glnvvSx/BzXHG7FlF08YvZTM7P6RcC3+mRmV4E53N2uLWE4HKBCA16yTf5HFqB18X5Cw3DjyyRTvKA==}
+  '@cloudflare/workers-types@4.20250927.0':
+    resolution: {integrity: sha512-XcFVTMNhHROLQ+AbmK6KQuis72iGCdQXrjVl2xX98ac7w3fzUiNfTsu+SKBXN9dSEjgJEhhj0EXSAXh0b8lSww==}
 
   '@date-fns/tz@1.4.1':
     resolution: {integrity: sha512-P5LUNhtbj6YfI3iJjw5EL9eUAG6OitD0W3fWQcpQjDRc/QIsL0tRNuO1PcDvPccWL1fSTXXdE1ds+l95DV/OFA==}
@@ -1794,8 +1797,8 @@ packages:
     engines: {node: '>=10'}
     deprecated: This functionality has been moved to @npmcli/fs
 
-  '@op-engineering/op-sqlite@15.0.4':
-    resolution: {integrity: sha512-EmT61SQ3gY4Q5CissFhAB9Mp/tL15IFyRpI5QGOrKoNgN4qUmNkh9V9ctJAmeKYJfUxKDS8qMPB/Q/KDPnJmmA==}
+  '@op-engineering/op-sqlite@15.0.5':
+    resolution: {integrity: sha512-nRWL2+sWb8D+F504xRpX9n4ZyERfvC4MVfZph86LOwqk+sOXnPwxUMNz3EuuLMoB2KSrgWOQsqjI2qRQSAXaow==}
     peerDependencies:
       react: '*'
       react-native: '*'
@@ -2950,6 +2953,10 @@ packages:
   '@types/estree@1.0.8':
     resolution: {integrity: sha512-dWHzHa2WqEXI/O1E9OjrocMTKJl2mSrEolh1Iomrv6U+JuNwaHXsXx9bLu5gG7BUWFIN0skIQJQ/L1rIex4X6w==}
 
+  '@types/googlemaps@3.43.3':
+    resolution: {integrity: sha512-ZWNoz/O8MPEpiajvj7QiqCY8tTLFNqNZ/a+s+zTV58wFVNAvvqV4bdGfnsjTb5Cs4V6wEsLrX8XRhmnyYJ2Tdg==}
+    deprecated: 'Types for the Google Maps browser API have moved to @types/google.maps. Note: these types are not for the googlemaps npm package, which is a Node API.'
+
   '@types/graceful-fs@4.1.9':
     resolution: {integrity: sha512-olP3sd1qOEe5dXTSaFvQG+02VdRXcdytWLAZsAq1PecU8uqQAhkrnbli7DagjtXKW/Bl7YJbUsa8MPcuc8LHEQ==}
 
@@ -3799,8 +3806,8 @@ packages:
     resolution: {integrity: sha512-47qPchRCykZC03FhkYAhrvwU4xDBFIj1QPqaarj6mdM/hgUzfPHcpkHJOn3mJAufFeeAxAzeGsr5X0M4k6fLZQ==}
     engines: {node: '>=12'}
 
-  drizzle-kit@0.31.4:
-    resolution: {integrity: sha512-tCPWVZWZqWVx2XUsVpJRnH9Mx0ClVOf5YUHerZ5so1OKSlqww4zy1R5ksEdGRcO3tM3zj0PYN6V48TbQCL1RfA==}
+  drizzle-kit@0.31.5:
+    resolution: {integrity: sha512-+CHgPFzuoTQTt7cOYCV6MOw2w8vqEn/ap1yv4bpZOWL03u7rlVRQhUY0WYT3rHsgVTXwYQDZaSUJSQrMBUKuWg==}
     hasBin: true
 
   drizzle-orm@0.44.5:
@@ -4389,6 +4396,9 @@ packages:
   global-dirs@0.1.1:
     resolution: {integrity: sha512-NknMLn7F2J7aflwFOlGdNIuCDpN3VGoSoB+aap3KABFWbHVn1TCgFC+np23J8W2BiZbjfEw3BFBycSMv1AFblg==}
     engines: {node: '>=4'}
+
+  google-maps@4.3.3:
+    resolution: {integrity: sha512-MQbEgBNQbGyV7mfS2tlFgW4EoGKLia24BvAl4a+kgsYWt4283kyPpaay/yKIsScQLr7nSUONaLNfOdMsCuJDEw==}
 
   gopd@1.2.0:
     resolution: {integrity: sha512-ZUKRh6/kUFoAiTAtTYPZJ3hw9wNxx+BIBOijnlG9PnrJsCcSjs1wyyD6vJpaYtgnzDrKYRSqf3OO6Rfa93xsRg==}
@@ -7670,7 +7680,7 @@ snapshots:
       '@babel/helper-string-parser': 7.27.1
       '@babel/helper-validator-identifier': 7.27.1
 
-  '@cloudflare/workers-types@4.20250926.0': {}
+  '@cloudflare/workers-types@4.20250927.0': {}
 
   '@date-fns/tz@1.4.1': {}
 
@@ -8484,7 +8494,7 @@ snapshots:
       rimraf: 3.0.2
     optional: true
 
-  '@op-engineering/op-sqlite@15.0.4(react-native@0.81.4(@babel/core@7.28.4)(@types/react@19.0.0)(bufferutil@4.0.9)(react@19.0.0))(react@19.0.0)':
+  '@op-engineering/op-sqlite@15.0.5(react-native@0.81.4(@babel/core@7.28.4)(@types/react@19.0.0)(bufferutil@4.0.9)(react@19.0.0))(react@19.0.0)':
     dependencies:
       react: 19.0.0
       react-native: 0.81.4(@babel/core@7.28.4)(@types/react@19.0.0)(bufferutil@4.0.9)(react@19.0.0)
@@ -9836,6 +9846,8 @@ snapshots:
 
   '@types/estree@1.0.8': {}
 
+  '@types/googlemaps@3.43.3': {}
+
   '@types/graceful-fs@4.1.9':
     dependencies:
       '@types/node': 22.0.0
@@ -10755,7 +10767,7 @@ snapshots:
 
   dotenv@16.4.7: {}
 
-  drizzle-kit@0.31.4:
+  drizzle-kit@0.31.5:
     dependencies:
       '@drizzle-team/brocli': 0.10.2
       '@esbuild-kit/esm-loader': 2.6.5
@@ -10764,15 +10776,15 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  drizzle-orm@0.44.5(0b9d593a550d4d2045bb0a02fc9b7216):
+  drizzle-orm@0.44.5(4a37b8fb6d82734e866fa960cad35a89):
     optionalDependencies:
       '@aws-sdk/client-rds-data': 3.896.0
-      '@cloudflare/workers-types': 4.20250926.0
+      '@cloudflare/workers-types': 4.20250927.0
       '@electric-sql/pglite': 0.3.10
       '@libsql/client': 0.15.15(bufferutil@4.0.9)
       '@libsql/client-wasm': 0.15.15
       '@neondatabase/serverless': 1.0.1
-      '@op-engineering/op-sqlite': 15.0.4(react-native@0.81.4(@babel/core@7.28.4)(@types/react@19.0.0)(bufferutil@4.0.9)(react@19.0.0))(react@19.0.0)
+      '@op-engineering/op-sqlite': 15.0.5(react-native@0.81.4(@babel/core@7.28.4)(@types/react@19.0.0)(bufferutil@4.0.9)(react@19.0.0))(react@19.0.0)
       '@opentelemetry/api': 1.9.0
       '@planetscale/database': 1.19.0
       '@prisma/client': 6.16.2(typescript@5.0.2)
@@ -11398,6 +11410,10 @@ snapshots:
   global-dirs@0.1.1:
     dependencies:
       ini: 1.3.8
+
+  google-maps@4.3.3:
+    dependencies:
+      '@types/googlemaps': 3.43.3
 
   gopd@1.2.0: {}
 
