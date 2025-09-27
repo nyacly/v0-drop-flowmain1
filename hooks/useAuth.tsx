@@ -1,20 +1,21 @@
 "use client"
 
-import { useAuth as useAuthProvider } from "@/components/auth-provider"
+import type React from "react"
+import { createContext, useContext, useState, useEffect } from "react"
 
 interface User {
-  id: string
+  id: number
   email: string
   firstName?: string
   lastName?: string
   isVerified: boolean
   isAdmin?: boolean
+  isPremium?: boolean
 }
 
 interface AuthContextType {
   user: User | null
   isLoading: boolean
-  isAuthenticated: boolean // Added missing isAuthenticated property
   login: (email: string, password: string) => Promise<{ success: boolean; message: string; user?: User }>
   register: (
     email: string,
@@ -28,77 +29,198 @@ interface AuthContextType {
   checkAuth: () => Promise<void>
 }
 
-export const useAuth = (): AuthContextType => {
-  const {
-    user: authUser,
-    isAuthenticated,
-    isLoading,
-    refreshAuth,
-    login: authLogin,
-    logout: authLogout,
-  } = useAuthProvider()
+const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
-  // Convert auth user to legacy User interface for compatibility
-  const user: User | null = authUser
-    ? {
-        id: authUser.id,
-        email: authUser.email,
-        firstName: authUser.displayName?.split(" ")[0],
-        lastName: authUser.displayName?.split(" ").slice(1).join(" "),
-        isVerified: authUser.isEmailVerified,
-        isAdmin: false,
+// Mock user data for demo purposes
+const MOCK_USERS = [
+  {
+    id: 1,
+    email: "demo@dropflow.com",
+    password: "demo123",
+    firstName: "Demo",
+    lastName: "User",
+    isVerified: true,
+    isAdmin: false,
+    isPremium: false,
+  },
+  {
+    id: 2,
+    email: "premium@dropflow.com",
+    password: "premium123",
+    firstName: "Premium",
+    lastName: "User",
+    isVerified: true,
+    isAdmin: false,
+    isPremium: true,
+  },
+]
+
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [user, setUser] = useState<User | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [isClient, setIsClient] = useState(false)
+
+  useEffect(() => {
+    setIsClient(true)
+  }, [])
+
+  // Mock API delay to simulate real API calls
+  const mockDelay = (ms = 500) => new Promise((resolve) => setTimeout(resolve, ms))
+
+  const checkAuth = async () => {
+    if (!isClient) return
+
+    try {
+      setIsLoading(true)
+      await mockDelay(300) // Simulate API call delay
+
+      // Check if user is stored in localStorage (mock session)
+      const storedUser = localStorage.getItem("dropflow-user")
+      if (storedUser) {
+        const userData = JSON.parse(storedUser)
+        setUser(userData)
+      } else {
+        setUser(null)
       }
-    : null
+    } catch (error) {
+      console.log("No active session found")
+      setUser(null)
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   const login = async (email: string, password: string) => {
     try {
-      await authLogin(email, password)
-      return { success: true, message: "Login successful", user }
-    } catch (error) {
-      return { success: false, message: "Login failed" }
+      await mockDelay(800) // Simulate API call delay
+
+      // Find user in mock data
+      const mockUser = MOCK_USERS.find((u) => u.email === email && u.password === password)
+
+      if (mockUser) {
+        const { password: _, ...userWithoutPassword } = mockUser
+        setUser(userWithoutPassword)
+
+        // Store in localStorage to simulate session
+        localStorage.setItem("dropflow-user", JSON.stringify(userWithoutPassword))
+
+        return { success: true, message: "Login successful", user: userWithoutPassword }
+      }
+
+      return { success: false, message: "Invalid email or password" }
+    } catch (error: any) {
+      console.error("Login error:", error)
+      return {
+        success: false,
+        message: error.message || "Login failed. Please check your credentials.",
+      }
     }
   }
 
   const register = async (email: string, password: string, firstName?: string, lastName?: string) => {
-    // Redirect to Stack Auth sign-up page
-    window.location.href = "/handler/signup"
-    return {
-      success: true,
-      message: "Redirecting to registration...",
-      email,
+    try {
+      await mockDelay(800) // Simulate API call delay
+
+      // Check if user already exists
+      const existingUser = MOCK_USERS.find((u) => u.email === email)
+      if (existingUser) {
+        return {
+          success: false,
+          message: "User with this email already exists",
+        }
+      }
+
+      // For demo purposes, we'll just return success without actually creating the user
+      return {
+        success: true,
+        message: "Registration successful! Please verify your email.",
+        email: email,
+      }
+    } catch (error: any) {
+      console.error("Registration error:", error)
+      return {
+        success: false,
+        message: error.message || "Registration failed. Please try again.",
+      }
     }
   }
 
   const verifyEmail = async (email: string, code: string) => {
-    return {
-      success: true,
-      message: "Email verification handled by Stack Auth",
+    try {
+      await mockDelay(600) // Simulate API call delay
+
+      // For demo purposes, accept any 6-digit code
+      if (code.length === 6 && /^\d+$/.test(code)) {
+        // Create a new verified user
+        const newUser = {
+          id: Date.now(),
+          email,
+          firstName: "New",
+          lastName: "User",
+          isVerified: true,
+          isAdmin: false,
+          isPremium: false,
+        }
+
+        setUser(newUser)
+        localStorage.setItem("dropflow-user", JSON.stringify(newUser))
+
+        return {
+          success: true,
+          message: "Email verified successfully",
+        }
+      }
+
+      return {
+        success: false,
+        message: "Invalid verification code. Please enter a 6-digit code.",
+      }
+    } catch (error: any) {
+      console.error("Email verification error:", error)
+      return {
+        success: false,
+        message: error.message || "Email verification failed. Please try again.",
+      }
     }
   }
 
   const resendVerification = async (email: string) => {
-    return {
-      success: true,
-      message: "Verification email resend handled by Stack Auth",
+    try {
+      await mockDelay(400) // Simulate API call delay
+
+      return {
+        success: true,
+        message: "Verification code sent to your email",
+      }
+    } catch (error: any) {
+      console.error("Resend verification error:", error)
+      return {
+        success: false,
+        message: error.message || "Failed to resend verification code",
+      }
     }
   }
 
   const logout = async () => {
     try {
-      authLogout()
+      await mockDelay(200) // Simulate API call delay
+      localStorage.removeItem("dropflow-user")
     } catch (error) {
       console.error("Logout error:", error)
+    } finally {
+      setUser(null)
     }
   }
 
-  const checkAuth = async () => {
-    await refreshAuth()
-  }
+  useEffect(() => {
+    if (isClient) {
+      checkAuth()
+    }
+  }, [isClient])
 
-  return {
+  const value = {
     user,
     isLoading,
-    isAuthenticated, // Return the isAuthenticated property
     login,
     register,
     verifyEmail,
@@ -106,4 +228,14 @@ export const useAuth = (): AuthContextType => {
     logout,
     checkAuth,
   }
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
+}
+
+export const useAuth = () => {
+  const context = useContext(AuthContext)
+  if (context === undefined) {
+    throw new Error("useAuth must be used within an AuthProvider")
+  }
+  return context
 }
