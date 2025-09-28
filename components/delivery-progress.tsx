@@ -32,6 +32,11 @@ export function DeliveryProgress({
   className = "",
   onNavigateToRoute,
 }: DeliveryProgressProps) {
+  // Guard against inconsistent state where stops are active but there's no route.
+  if (!activeRoute && stops.some((s) => s.status === "pending")) {
+    return null
+  }
+
   const [currentTime, setCurrentTime] = useState(new Date())
   const [estimatedCompletion, setEstimatedCompletion] = useState<Date | null>(null)
   const [trafficAwareETA, setTrafficAwareETA] = useState<string | null>(null)

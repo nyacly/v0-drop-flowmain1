@@ -248,7 +248,7 @@ export default function DropFlowApp() {
 
         {currentView === "home" && (
           <>
-            {hasActiveDelivery && (
+            {hasActiveDelivery && activeRoute && (
               <div className="mb-6">
                 <DeliveryProgress
                   stops={stops}
