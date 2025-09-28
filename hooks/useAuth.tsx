@@ -164,9 +164,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (storedCode && storedCode === code) {
         // Create a new verified user
-        const newUser = {
+        const newUser: User = {
           id: Date.now(),
-          email,
+          email: email,
           firstName: "New",
           lastName: "User",
           isVerified: true,
