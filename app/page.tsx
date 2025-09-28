@@ -83,6 +83,7 @@ function useStops() {
       address: addr.address,
       status: "pending" as const,
       description: addr.description,
+      coordinates: addr.coordinates,
     }))
     setStops(routeStops)
     if (typeof window !== "undefined") {
