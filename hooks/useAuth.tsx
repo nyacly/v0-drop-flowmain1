@@ -58,32 +58,35 @@ const MOCK_USERS = [
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [isClient, setIsClient] = useState(false)
 
   useEffect(() => {
-    setIsClient(true)
+    try {
+      const storedUser = localStorage.getItem("dropflow-user")
+      if (storedUser) {
+        setUser(JSON.parse(storedUser))
+      }
+    } catch (error) {
+      console.error("Failed to load user from localStorage", error)
+      setUser(null)
+    } finally {
+      setIsLoading(false)
+    }
   }, [])
 
   // Mock API delay to simulate real API calls
   const mockDelay = (ms = 500) => new Promise((resolve) => setTimeout(resolve, ms))
 
   const checkAuth = async () => {
-    if (!isClient) return
-
+    // This function is now deprecated. The logic is handled by the useEffect above.
+    // It is kept for now to avoid breaking the context signature.
+    setIsLoading(true)
     try {
-      setIsLoading(true)
-      await mockDelay(300) // Simulate API call delay
-
-      // Check if user is stored in localStorage (mock session)
       const storedUser = localStorage.getItem("dropflow-user")
       if (storedUser) {
-        const userData = JSON.parse(storedUser)
-        setUser(userData)
-      } else {
-        setUser(null)
+        setUser(JSON.parse(storedUser))
       }
     } catch (error) {
-      console.log("No active session found")
+      console.error("checkAuth failed:", error)
       setUser(null)
     } finally {
       setIsLoading(false)
@@ -221,12 +224,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(null)
     }
   }
-
-  useEffect(() => {
-    if (isClient) {
-      checkAuth()
-    }
-  }, [isClient])
 
   const value = {
     user,

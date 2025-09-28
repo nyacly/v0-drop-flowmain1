@@ -122,29 +122,31 @@ const generateMockCoordinates = (): { lat: number; lng: number } => {
 }
 
 export function useAddresses() {
-  const [addresses, setAddresses] = useState<Address[]>([])
-  const [routes, setRoutes] = useState<DeliveryRoute[]>([])
-
-  // Load addresses from localStorage
-  useEffect(() => {
-    const savedAddresses = localStorage.getItem("dropflow-addresses")
-    if (savedAddresses) {
-      try {
-        setAddresses(JSON.parse(savedAddresses))
-      } catch (error) {
-        console.error("Error loading addresses:", error)
-      }
+  const [addresses, setAddresses] = useState<Address[]>(() => {
+    if (typeof window === "undefined") {
+      return []
     }
-
-    const savedRoutes = localStorage.getItem("dropflow-routes")
-    if (savedRoutes) {
-      try {
-        setRoutes(JSON.parse(savedRoutes))
-      } catch (error) {
-        console.error("Error loading routes:", error)
-      }
+    try {
+      const savedAddresses = localStorage.getItem("dropflow-addresses")
+      return savedAddresses ? JSON.parse(savedAddresses) : []
+    } catch (error) {
+      console.error("Error loading addresses from localStorage:", error)
+      return []
     }
-  }, [])
+  })
+
+  const [routes, setRoutes] = useState<DeliveryRoute[]>(() => {
+    if (typeof window === "undefined") {
+      return []
+    }
+    try {
+      const savedRoutes = localStorage.getItem("dropflow-routes")
+      return savedRoutes ? JSON.parse(savedRoutes) : []
+    } catch (error) {
+      console.error("Error loading routes from localStorage:", error)
+      return []
+    }
+  })
 
   // Save addresses to localStorage
   const saveAddresses = (newAddresses: Address[]) => {
