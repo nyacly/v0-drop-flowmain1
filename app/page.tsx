@@ -217,6 +217,15 @@ export default function DropFlowApp() {
     )
   }
 
+  let displayName = "User"
+  if (user) {
+    if (user.firstName) {
+      displayName = user.firstName
+    } else if (typeof user.email === "string") {
+      displayName = user.email.split("@")[0]
+    }
+  }
+
   // Rest of the authenticated app UI
   return (
     <div className="min-h-screen bg-background">
@@ -225,7 +234,7 @@ export default function DropFlowApp() {
           <div className="text-center flex-1">
             <h1 className="text-4xl font-bold text-red-600 mb-2">🚛 DropFlow</h1>
             <p className="text-xl text-muted-foreground">
-              Welcome back, {user?.firstName || user?.email?.split("@")[0] || "User"}!
+              Welcome back, {displayName}!
             </p>
           </div>
           <div className="flex items-center gap-2">
