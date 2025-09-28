@@ -8,6 +8,7 @@ export interface Address {
   description: string
   dateAdded: string
   timesUsed: number
+  coordinates?: { lat: number; lng: number }
 }
 
 export interface DeliveryRoute {
@@ -107,6 +108,19 @@ const removeDuplicates = (
   })
 }
 
+// Simulate geocoding by generating random coordinates around a central point
+const generateMockCoordinates = (): { lat: number; lng: number } => {
+  // Brisbane, AU
+  const centerLat = -27.4705
+  const centerLng = 153.026
+
+  // Generate a random point within a ~10km radius
+  const lat = centerLat + (Math.random() - 0.5) * 0.2
+  const lng = centerLng + (Math.random() - 0.5) * 0.2
+
+  return { lat, lng }
+}
+
 export function useAddresses() {
   const [addresses, setAddresses] = useState<Address[]>([])
   const [routes, setRoutes] = useState<DeliveryRoute[]>([])
@@ -158,6 +172,7 @@ export function useAddresses() {
       description,
       dateAdded: new Date().toISOString(),
       timesUsed: 0,
+      coordinates: generateMockCoordinates(),
     }
 
     // Check for duplicates using corrected address
@@ -222,6 +237,7 @@ export function useAddresses() {
           description,
           dateAdded: new Date().toISOString(),
           timesUsed: 0,
+          coordinates: generateMockCoordinates(),
         }
 
         newAddresses.push(newAddress)
