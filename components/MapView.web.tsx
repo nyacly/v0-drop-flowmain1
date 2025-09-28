@@ -21,27 +21,17 @@ const API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY
 // Function to load the Google Maps script robustly
 const loadScript = (apiKey: string): Promise<void> => {
   const scriptId = "google-maps-script"
-
   return new Promise((resolve, reject) => {
-    // If script is already loaded or is in the process of loading, wait for it
     if (window.google && window.google.maps) {
       return resolve()
     }
-
     const existingScript = document.getElementById(scriptId) as HTMLScriptElement | null
     if (existingScript) {
       const onReady = () => {
         existingScript.removeEventListener("load", onReady)
-        existingScript.removeEventListener("error", onError)
         resolve()
       }
-      const onError = (e: Event | string) => {
-        existingScript.removeEventListener("load", onReady)
-        existingScript.removeEventListener("error", onError)
-        reject(e)
-      }
       existingScript.addEventListener("load", onReady)
-      existingScript.addEventListener("error", onError)
       return
     }
 
@@ -57,70 +47,87 @@ const loadScript = (apiKey: string): Promise<void> => {
 }
 
 const MapView: React.FC<MapViewProps> = ({ stops }) => {
-  const mapRef = useRef<HTMLDivElement>(null)
+  const mapContainerRef = useRef<HTMLDivElement>(null)
+  const mapInstanceRef = useRef<google.maps.Map | null>(null)
+  const markersRef = useRef<google.maps.Marker[]>([])
   const [isApiLoaded, setIsApiLoaded] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // Effect to load the Google Maps API script
   useEffect(() => {
     if (!API_KEY) {
       setError("Google Maps API key is missing. Please configure it in your environment variables.")
       return
     }
-
     loadScript(API_KEY)
       .then(() => setIsApiLoaded(true))
       .catch(() => setError("Failed to load Google Maps. Please check your API key and internet connection."))
   }, [])
 
+  // Effect to initialize the map instance once the API is loaded
   useEffect(() => {
-    if (!isApiLoaded || !mapRef.current) return
+    if (!isApiLoaded || !mapContainerRef.current || mapInstanceRef.current) {
+      return
+    }
+
+    mapInstanceRef.current = new window.google.maps.Map(mapContainerRef.current, {
+      center: { lat: -27.4705, lng: 153.026 }, // Default to Brisbane, AU
+      zoom: 12,
+      mapId: "DROPFLOW_MAP_ID",
+      disableDefaultUI: true,
+    })
+  }, [isApiLoaded])
+
+  // Effect to update markers and map bounds when stops change
+  useEffect(() => {
+    const map = mapInstanceRef.current
+    if (!map) return
+
+    // Clear existing markers from the map and the ref
+    markersRef.current.forEach((marker) => marker.setMap(null))
+    markersRef.current = []
 
     const validStops = stops.filter((stop) => stop.coordinates && stop.coordinates.lat && stop.coordinates.lng)
 
     if (validStops.length === 0) {
-      // Default view if no stops have coordinates
-      const map = new window.google.maps.Map(mapRef.current, {
-        center: { lat: -27.4705, lng: 153.026 }, // Brisbane, AU
-        zoom: 12,
-        mapId: "DROPFLOW_MAP_ID",
-      })
+      map.setCenter({ lat: -27.4705, lng: 153.026 })
+      map.setZoom(12)
       return
     }
-
-    const map = new window.google.maps.Map(mapRef.current, {
-      center: validStops[0].coordinates,
-      zoom: 14,
-      mapId: "DROPFLOW_MAP_ID",
-    })
 
     const bounds = new window.google.maps.LatLngBounds()
 
     validStops.forEach((stop, index) => {
       if (stop.coordinates) {
-        new window.google.maps.Marker({
+        const marker = new window.google.maps.Marker({
           position: stop.coordinates,
           map,
           title: stop.address,
           label: {
             text: `${index + 1}`,
             color: "white",
+            fontWeight: "bold",
           },
         })
+        markersRef.current.push(marker)
         bounds.extend(stop.coordinates)
       }
     })
 
-    if (validStops.length > 1) {
-      map.fitBounds(bounds)
-    } else {
-      map.setCenter(bounds.getCenter())
-      map.setZoom(14)
-    }
-  }, [isApiLoaded, stops])
+    // This is the key fix for the "blue map" issue.
+    // We trigger a resize event and then fit the bounds.
+    setTimeout(() => {
+      google.maps.event.trigger(map, "resize")
+      if (validStops.length > 0) {
+        map.fitBounds(bounds, 100) // 100px padding
+      }
+    }, 100) // A small delay ensures the container has its final size.
+
+  }, [stops, isApiLoaded])
 
   if (error) {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', background: '#f8d7da', color: '#721c24', padding: '20px', borderRadius: '12px', textAlign: 'center' }}>
+      <div className="flex items-center justify-center h-full bg-red-100 text-red-700 p-4 rounded-lg text-center">
         <p>{error}</p>
       </div>
     )
@@ -128,7 +135,7 @@ const MapView: React.FC<MapViewProps> = ({ stops }) => {
 
   if (!API_KEY) {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', background: '#fff3cd', color: '#856404', padding: '20px', borderRadius: '12px', textAlign: 'center' }}>
+      <div className="flex items-center justify-center h-full bg-yellow-100 text-yellow-700 p-4 rounded-lg text-center">
         <p>Google Maps API key is not configured. The map cannot be displayed.</p>
       </div>
     )
@@ -136,15 +143,8 @@ const MapView: React.FC<MapViewProps> = ({ stops }) => {
 
   return (
     <div
-      ref={mapRef}
-      style={{
-        width: "100%",
-        height: "100%",
-        borderRadius: "12px",
-        overflow: "hidden",
-        boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
-        background: "#e9e9e9", // Placeholder while map loads
-      }}
+      ref={mapContainerRef}
+      className="w-full h-full rounded-lg overflow-hidden shadow-md bg-gray-200"
     />
   )
 }
