@@ -2,6 +2,7 @@
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
 import { MapView } from "@/components/MapView.web"
 import { DeliveryProgress } from "@/components/delivery-progress"
 import { useAddresses } from "@/hooks/use-addresses"
@@ -55,18 +56,51 @@ export function RoutePlanner({ stops, onUpdateStatus, onReorder, onNavigateBack 
             </CardHeader>
             <CardContent>
               {/* This is a simplified view. A real implementation would have more interactive elements. */}
-              <div className="space-y-2">
+                  <div className="space-y-3">
                 {stops.map((stop, index) => (
-                  <div key={stop.id} className="flex items-center justify-between p-2 border rounded">
-                    <div>
-                      <p className="font-medium">
-                        {index + 1}. {stop.address}
-                      </p>
-                      <p className="text-sm text-muted-foreground">{stop.description}</p>
+                  <div
+                    key={stop.id}
+                    className={`p-3 border rounded-lg transition-all ${
+                      stop.status === "done" ? "bg-green-50 border-green-200" : ""
+                    } ${stop.status === "skipped" ? "bg-yellow-50 border-yellow-200" : ""}`}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium">
+                          {index + 1}. {stop.address}
+                        </p>
+                        {stop.description && <p className="text-sm text-muted-foreground mt-1">{stop.description}</p>}
+                      </div>
+                      <Badge
+                        variant={
+                          stop.status === "done" ? "default" : stop.status === "skipped" ? "destructive" : "secondary"
+                        }
+                        className={`capitalize ml-2 ${
+                          stop.status === "done" ? "bg-green-600" : stop.status === "skipped" ? "bg-yellow-600" : ""
+                        }`}
+                      >
+                        {stop.status}
+                      </Badge>
                     </div>
-                    <p className={`text-sm font-semibold ${stop.status === "done" ? "text-green-500" : "text-yellow-500"}`}>
-                      {stop.status}
-                    </p>
+                    {stop.status === "pending" && (
+                      <div className="flex gap-2 mt-3">
+                        <Button
+                          size="sm"
+                          onClick={() => onUpdateStatus(stop.id, "done")}
+                          className="w-full bg-green-600 hover:bg-green-700"
+                        >
+                          Done
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => onUpdateStatus(stop.id, "skipped")}
+                          className="w-full"
+                        >
+                          Skip
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
