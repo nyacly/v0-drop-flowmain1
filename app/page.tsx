@@ -1,5 +1,5 @@
 "use client"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { MapPin, Package, Users, LogOut, LogIn } from "lucide-react"
@@ -23,7 +23,7 @@ interface Stop {
 }
 
 function useStops() {
-  const [stops, setStops] = useState(() => {
+  const [stops, setStops] = useState<Stop[]>(() => {
     if (typeof window !== "undefined") {
       const saved = localStorage.getItem("dropflow-stops")
       if (saved) {
@@ -38,47 +38,39 @@ function useStops() {
     return []
   })
 
-  const addStop = (address: string, description?: string) => {
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("dropflow-stops", JSON.stringify(stops))
+    }
+  }, [stops])
+
+  const addStop = useCallback((address: string, description?: string) => {
     console.log("[v0] Adding stop to state:", { address, description })
-    const newStop = {
+    const newStop: Stop = {
       id: Date.now().toString(),
       address,
       status: "pending",
       description,
     }
-    const newStops = [...stops, newStop]
-    setStops(newStops)
-    if (typeof window !== "undefined") {
-      localStorage.setItem("dropflow-stops", JSON.stringify(newStops))
-      console.log("[v0] Saved to localStorage, total stops:", newStops.length)
-    }
-  }
+    setStops((prevStops) => [...prevStops, newStop])
+  }, [])
 
-  const removeStop = (id: string) => {
-    const newStops = stops.filter((s) => s.id !== id)
-    setStops(newStops)
-    if (typeof window !== "undefined") {
-      localStorage.setItem("dropflow-stops", JSON.stringify(newStops))
-    }
-  }
+  const removeStop = useCallback((id: string) => {
+    setStops((prevStops) => prevStops.filter((s) => s.id !== id))
+  }, [])
 
-  const updateStopStatus = (id: string, status: Stop["status"]) => {
-    const newStops = stops.map((s) => (s.id === id ? { ...s, status } : s))
-    setStops(newStops)
-    if (typeof window !== "undefined") {
-      localStorage.setItem("dropflow-stops", JSON.stringify(newStops))
-    }
-  }
+  const updateStopStatus = useCallback((id: string, status: Stop["status"]) => {
+    setStops((prevStops) =>
+      prevStops.map((s) => (s.id === id ? { ...s, status } : s))
+    )
+  }, [])
 
-  const reorderStops = (newStops: Stop[]) => {
+  const reorderStops = useCallback((newStops: Stop[]) => {
     setStops(newStops)
-    if (typeof window !== "undefined") {
-      localStorage.setItem("dropflow-stops", JSON.stringify(newStops))
-    }
-  }
+  }, [])
 
-  const loadRouteStops = (route: DeliveryRoute) => {
-    const routeStops = route.addresses.map((addr) => ({
+  const loadRouteStops = useCallback((route: DeliveryRoute) => {
+    const routeStops: Stop[] = route.addresses.map((addr) => ({
       id: `route-${route.id}-${addr.id}`,
       address: addr.address,
       status: "pending" as const,
@@ -86,10 +78,7 @@ function useStops() {
       coordinates: addr.coordinates,
     }))
     setStops(routeStops)
-    if (typeof window !== "undefined") {
-      localStorage.setItem("dropflow-stops", JSON.stringify(routeStops))
-    }
-  }
+  }, [])
 
   return { stops, addStop, removeStop, updateStopStatus, reorderStops, loadRouteStops }
 }
