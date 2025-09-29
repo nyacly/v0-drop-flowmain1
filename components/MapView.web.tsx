@@ -150,3 +150,5 @@ const MapView: React.FC<MapViewProps> = ({ stops }) => {
 }
 
 export default MapView
+
+export { MapView }
