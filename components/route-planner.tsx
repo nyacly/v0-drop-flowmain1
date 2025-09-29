@@ -3,7 +3,7 @@
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { MapView } from "@/components/MapView.web"
+import MapView from "@/components/MapView.web"
 import { DeliveryProgress } from "@/components/delivery-progress"
 import { useAddresses } from "@/hooks/use-addresses"
 
