@@ -19,9 +19,15 @@ export function RouteManager({ onStartRoute }: RouteManagerProps) {
   const [selectedAddresses, setSelectedAddresses] = useState<string[]>([])
 
   const handleStartRoute = (route: DeliveryRoute) => {
+    const nextRouteState: DeliveryRoute = {
+      ...route,
+      status: "active",
+    }
+
     updateRoute(route.id, { status: "active" })
+
     if (onStartRoute) {
-      onStartRoute(route)
+      onStartRoute(nextRouteState)
     }
   }
 

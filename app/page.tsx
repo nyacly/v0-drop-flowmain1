@@ -132,7 +132,14 @@ export default function DropFlowApp() {
   }
 
   const handleStartRoute = (route: DeliveryRoute) => {
-    loadRouteStops(route)
+    const routeToLoad = routes.find((existingRoute) => existingRoute.id === route.id) ?? route
+
+    if (!routeToLoad.addresses || routeToLoad.addresses.length === 0) {
+      console.warn("Attempted to start a route with no addresses", routeToLoad)
+      return
+    }
+
+    loadRouteStops(routeToLoad)
     setCurrentView("plan")
   }
 
