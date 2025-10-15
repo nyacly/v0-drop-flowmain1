@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import type React from "react"
+import { createContext, useContext, useCallback, useEffect, useMemo, useState } from "react"
 
 export interface Address {
   id: string
@@ -121,196 +122,261 @@ const generateMockCoordinates = (): { lat: number; lng: number } => {
   return { lat, lng }
 }
 
-export function useAddresses() {
-  const [addresses, setAddresses] = useState<Address[]>(() => {
+interface AddressesContextValue {
+  addresses: Address[]
+  routes: DeliveryRoute[]
+  addAddress: (address: string, description?: string) => Address
+  addAddresses: (addressList: { address: string; description: string }[]) => {
+    added: Address[]
+    errors: string[]
+    corrected: string[]
+  }
+  removeAddress: (id: string) => void
+  updateAddress: (id: string, updates: Partial<Address>) => void
+  createRoute: (name: string, selectedAddresses?: Address[]) => DeliveryRoute
+  updateRoute: (id: string, updates: Partial<DeliveryRoute>) => void
+  deleteRoute: (id: string) => void
+}
+
+const AddressesContext = createContext<AddressesContextValue | undefined>(undefined)
+
+const STORAGE_KEYS = {
+  addresses: "dropflow-addresses",
+  routes: "dropflow-routes",
+} as const
+
+type StateUpdater<T> = T | ((previous: T) => T)
+
+export const AddressesProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [addresses, setAddresses] = useState<Address[]>([])
+  const [routes, setRoutes] = useState<DeliveryRoute[]>([])
+
+  // Load data from localStorage on initial mount
+  useEffect(() => {
     if (typeof window === "undefined") {
-      return []
+      return
     }
+
     try {
-      const savedAddresses = localStorage.getItem("dropflow-addresses")
-      return savedAddresses ? JSON.parse(savedAddresses) : []
-    } catch (error) {
-      console.error("Error loading addresses from localStorage:", error)
-      return []
-    }
-  })
+      const savedAddresses = window.localStorage.getItem(STORAGE_KEYS.addresses)
+      const savedRoutes = window.localStorage.getItem(STORAGE_KEYS.routes)
 
-  const [routes, setRoutes] = useState<DeliveryRoute[]>(() => {
-    if (typeof window === "undefined") {
-      return []
-    }
-    try {
-      const savedRoutes = localStorage.getItem("dropflow-routes")
-      return savedRoutes ? JSON.parse(savedRoutes) : []
-    } catch (error) {
-      console.error("Error loading routes from localStorage:", error)
-      return []
-    }
-  })
-
-  // Save addresses to localStorage
-  const saveAddresses = (newAddresses: Address[]) => {
-    setAddresses(newAddresses)
-    localStorage.setItem("dropflow-addresses", JSON.stringify(newAddresses))
-  }
-
-  // Save routes to localStorage
-  const saveRoutes = (newRoutes: DeliveryRoute[]) => {
-    setRoutes(newRoutes)
-    localStorage.setItem("dropflow-routes", JSON.stringify(newRoutes))
-  }
-
-  // Add a single address
-  const addAddress = (address: string, description = "") => {
-    const validation = validateAddress(address)
-
-    if (!validation.isValid) {
-      throw new Error(`Invalid address: ${validation.errors.join(", ")}`)
-    }
-
-    const newAddress: Address = {
-      id: `addr-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      address: validation.corrected,
-      description,
-      dateAdded: new Date().toISOString(),
-      timesUsed: 0,
-      coordinates: generateMockCoordinates(),
-    }
-
-    // Check for duplicates using corrected address
-    const isDuplicate = addresses.some(
-      (addr) => addr.address.toLowerCase().trim() === validation.corrected.toLowerCase().trim(),
-    )
-
-    if (isDuplicate) {
-      throw new Error("Address already exists")
-    }
-
-    saveAddresses([...addresses, newAddress])
-    return newAddress
-  }
-
-  // Add multiple addresses (bulk import)
-  const addAddresses = (addressList: { address: string; description: string }[]) => {
-    // Remove duplicates from input list first
-    const uniqueAddressList = removeDuplicates(addressList)
-
-    const newAddresses: Address[] = []
-    const errors: string[] = []
-    const corrected: string[] = []
-
-    uniqueAddressList.forEach(({ address, description }) => {
-      try {
-        const validation = validateAddress(address)
-
-        if (!validation.isValid) {
-          errors.push(`Invalid address "${address}": ${validation.errors.join(", ")}`)
-          return
-        }
-
-        // Track if address was corrected
-        if (validation.corrected !== address.trim()) {
-          corrected.push(`"${address}" → "${validation.corrected}"`)
-        }
-
-        // Check for duplicates in existing addresses
-        const isDuplicateInExisting = addresses.some(
-          (addr) => addr.address.toLowerCase().trim() === validation.corrected.toLowerCase().trim(),
-        )
-
-        if (isDuplicateInExisting) {
-          errors.push(`Duplicate address: ${validation.corrected}`)
-          return
-        }
-
-        // Check for duplicates within the new list
-        const isDuplicateInNew = newAddresses.some(
-          (addr) => addr.address.toLowerCase().trim() === validation.corrected.toLowerCase().trim(),
-        )
-
-        if (isDuplicateInNew) {
-          errors.push(`Duplicate in import: ${validation.corrected}`)
-          return
-        }
-
-        const newAddress: Address = {
-          id: `addr-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-          address: validation.corrected,
-          description,
-          dateAdded: new Date().toISOString(),
-          timesUsed: 0,
-          coordinates: generateMockCoordinates(),
-        }
-
-        newAddresses.push(newAddress)
-      } catch (error) {
-        errors.push(`Error adding ${address}: ${error}`)
+      if (savedAddresses) {
+        setAddresses(JSON.parse(savedAddresses))
       }
+
+      if (savedRoutes) {
+        setRoutes(JSON.parse(savedRoutes))
+      }
+    } catch (error) {
+      console.error("Error loading DropFlow data from localStorage:", error)
+    }
+  }, [])
+
+  const persistAddresses = useCallback((next: StateUpdater<Address[]>) => {
+    setAddresses((previous) => {
+      const resolved = typeof next === "function" ? (next as (prev: Address[]) => Address[])(previous) : next
+
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(STORAGE_KEYS.addresses, JSON.stringify(resolved))
+      }
+
+      return resolved
     })
+  }, [])
 
-    if (newAddresses.length > 0) {
-      saveAddresses([...addresses, ...newAddresses])
-    }
+  const persistRoutes = useCallback((next: StateUpdater<DeliveryRoute[]>) => {
+    setRoutes((previous) => {
+      const resolved = typeof next === "function" ? (next as (prev: DeliveryRoute[]) => DeliveryRoute[])(previous) : next
 
-    return { added: newAddresses, errors, corrected }
-  }
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(STORAGE_KEYS.routes, JSON.stringify(resolved))
+      }
 
-  // Remove an address
-  const removeAddress = (id: string) => {
-    const updatedAddresses = addresses.filter((addr) => addr.id !== id)
-    saveAddresses(updatedAddresses)
-  }
+      return resolved
+    })
+  }, [])
 
-  // Update an address
-  const updateAddress = (id: string, updates: Partial<Address>) => {
-    const updatedAddresses = addresses.map((addr) => (addr.id === id ? { ...addr, ...updates } : addr))
-    saveAddresses(updatedAddresses)
-  }
+  const addAddress = useCallback(
+    (address: string, description = "") => {
+      const validation = validateAddress(address)
 
-  // Create a new delivery route
-  const createRoute = (name: string, selectedAddresses: Address[] = []) => {
-    const newRoute: DeliveryRoute = {
-      id: `route-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      name,
-      addresses: selectedAddresses,
-      createdAt: new Date().toISOString(),
-      status: "draft",
-    }
+      if (!validation.isValid) {
+        throw new Error(`Invalid address: ${validation.errors.join(", ")}`)
+      }
 
-    // Increment usage count for selected addresses
-    if (selectedAddresses.length > 0) {
-      const updatedAddresses = addresses.map((addr) => {
-        const isSelected = selectedAddresses.some((selected) => selected.id === addr.id)
-        return isSelected ? { ...addr, timesUsed: addr.timesUsed + 1 } : addr
+      const isDuplicate = addresses.some(
+        (addr) => addr.address.toLowerCase().trim() === validation.corrected.toLowerCase().trim(),
+      )
+
+      if (isDuplicate) {
+        throw new Error("Address already exists")
+      }
+
+      const newAddress: Address = {
+        id: `addr-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        address: validation.corrected,
+        description,
+        dateAdded: new Date().toISOString(),
+        timesUsed: 0,
+        coordinates: generateMockCoordinates(),
+      }
+
+      persistAddresses((prev) => [...prev, newAddress])
+      return newAddress
+    },
+    [addresses, persistAddresses],
+  )
+
+  const addAddresses = useCallback(
+    (addressList: { address: string; description: string }[]) => {
+      const uniqueAddressList = removeDuplicates(addressList)
+
+      const newAddresses: Address[] = []
+      const errors: string[] = []
+      const corrected: string[] = []
+
+      uniqueAddressList.forEach(({ address, description }) => {
+        try {
+          const validation = validateAddress(address)
+
+          if (!validation.isValid) {
+            errors.push(`Invalid address "${address}": ${validation.errors.join(", ")}`)
+            return
+          }
+
+          if (validation.corrected !== address.trim()) {
+            corrected.push(`"${address}" → "${validation.corrected}"`)
+          }
+
+          const isDuplicateInExisting = addresses.some(
+            (addr) => addr.address.toLowerCase().trim() === validation.corrected.toLowerCase().trim(),
+          )
+
+          if (isDuplicateInExisting) {
+            errors.push(`Duplicate address: ${validation.corrected}`)
+            return
+          }
+
+          const isDuplicateInNew = newAddresses.some(
+            (addr) => addr.address.toLowerCase().trim() === validation.corrected.toLowerCase().trim(),
+          )
+
+          if (isDuplicateInNew) {
+            errors.push(`Duplicate in import: ${validation.corrected}`)
+            return
+          }
+
+          const newAddress: Address = {
+            id: `addr-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            address: validation.corrected,
+            description,
+            dateAdded: new Date().toISOString(),
+            timesUsed: 0,
+            coordinates: generateMockCoordinates(),
+          }
+
+          newAddresses.push(newAddress)
+        } catch (error) {
+          errors.push(`Error adding ${address}: ${error}`)
+        }
       })
-      saveAddresses(updatedAddresses)
-    }
 
-    saveRoutes([...routes, newRoute])
-    return newRoute
+      if (newAddresses.length > 0) {
+        persistAddresses((prev) => [...prev, ...newAddresses])
+      }
+
+      return { added: newAddresses, errors, corrected }
+    },
+    [addresses, persistAddresses],
+  )
+
+  const removeAddress = useCallback(
+    (id: string) => {
+      persistAddresses((prev) => prev.filter((addr) => addr.id !== id))
+    },
+    [persistAddresses],
+  )
+
+  const updateAddress = useCallback(
+    (id: string, updates: Partial<Address>) => {
+      persistAddresses((prev) => prev.map((addr) => (addr.id === id ? { ...addr, ...updates } : addr)))
+    },
+    [persistAddresses],
+  )
+
+  const createRoute = useCallback(
+    (name: string, selectedAddresses: Address[] = []) => {
+      const newRoute: DeliveryRoute = {
+        id: `route-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        name,
+        addresses: selectedAddresses,
+        createdAt: new Date().toISOString(),
+        status: "draft",
+      }
+
+      if (selectedAddresses.length > 0) {
+        const updatedAddresses = addresses.map((addr) => {
+          const isSelected = selectedAddresses.some((selected) => selected.id === addr.id)
+          return isSelected ? { ...addr, timesUsed: addr.timesUsed + 1 } : addr
+        })
+        persistAddresses(updatedAddresses)
+      }
+
+      persistRoutes((prev) => [...prev, newRoute])
+      return newRoute
+    },
+    [addresses, persistAddresses, persistRoutes],
+  )
+
+  const updateRoute = useCallback(
+    (id: string, updates: Partial<DeliveryRoute>) => {
+      persistRoutes((prev) => prev.map((route) => (route.id === id ? { ...route, ...updates } : route)))
+    },
+    [persistRoutes],
+  )
+
+  const deleteRoute = useCallback(
+    (id: string) => {
+      persistRoutes((prev) => prev.filter((route) => route.id !== id))
+    },
+    [persistRoutes],
+  )
+
+  const value = useMemo(
+    () => ({
+      addresses,
+      routes,
+      addAddress,
+      addAddresses,
+      removeAddress,
+      updateAddress,
+      createRoute,
+      updateRoute,
+      deleteRoute,
+    }),
+    [
+      addAddress,
+      addAddresses,
+      addresses,
+      createRoute,
+      deleteRoute,
+      removeAddress,
+      routes,
+      updateAddress,
+      updateRoute,
+    ],
+  )
+
+  return <AddressesContext.Provider value={value}>{children}</AddressesContext.Provider>
+}
+
+export function useAddresses() {
+  const context = useContext(AddressesContext)
+
+  if (!context) {
+    throw new Error("useAddresses must be used within an AddressesProvider")
   }
 
-  // Update a route
-  const updateRoute = (id: string, updates: Partial<DeliveryRoute>) => {
-    const updatedRoutes = routes.map((route) => (route.id === id ? { ...route, ...updates } : route))
-    saveRoutes(updatedRoutes)
-  }
-
-  // Delete a route
-  const deleteRoute = (id: string) => {
-    const updatedRoutes = routes.filter((route) => route.id !== id)
-    saveRoutes(updatedRoutes)
-  }
-
-  return {
-    addresses,
-    routes,
-    addAddress,
-    addAddresses,
-    removeAddress,
-    updateAddress,
-    createRoute,
-    updateRoute,
-    deleteRoute,
-  }
+  return context
 }
