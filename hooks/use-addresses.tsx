@@ -109,6 +109,59 @@ const removeDuplicates = (
   })
 }
 
+// Helper function to wait for Google Maps API to load
+const waitForGoogleMaps = (): Promise<boolean> => {
+  return new Promise((resolve) => {
+    if (typeof window !== 'undefined' && window.google?.maps) {
+      resolve(true)
+      return
+    }
+
+    let attempts = 0
+    const maxAttempts = 50 // 5 seconds total (50 * 100ms)
+
+    const checkInterval = setInterval(() => {
+      attempts++
+
+      if (typeof window !== 'undefined' && window.google?.maps) {
+        clearInterval(checkInterval)
+        resolve(true)
+      } else if (attempts >= maxAttempts) {
+        clearInterval(checkInterval)
+        resolve(false)
+      }
+    }, 100)
+  })
+}
+
+// Real geocoding using Google Maps Geocoding API
+const geocodeAddress = async (address: string): Promise<{ lat: number; lng: number } | null> => {
+  const isReady = await waitForGoogleMaps()
+
+  if (!isReady) {
+    console.error('Google Maps API not loaded')
+    return null
+  }
+
+  try {
+    const geocoder = new window.google.maps.Geocoder()
+    const result = await geocoder.geocode({ address })
+
+    if (result.results && result.results.length > 0) {
+      const location = result.results[0].geometry.location
+      return {
+        lat: location.lat(),
+        lng: location.lng()
+      }
+    }
+
+    return null
+  } catch (error) {
+    console.error('Geocoding error:', error)
+    return null
+  }
+}
+
 // Simulate geocoding by generating random coordinates around a central point
 const generateMockCoordinates = (): { lat: number; lng: number } => {
   // Brisbane, AU
@@ -125,12 +178,12 @@ const generateMockCoordinates = (): { lat: number; lng: number } => {
 interface AddressesContextValue {
   addresses: Address[]
   routes: DeliveryRoute[]
-  addAddress: (address: string, description?: string) => Address
-  addAddresses: (addressList: { address: string; description: string }[]) => {
+  addAddress: (address: string, description?: string) => Promise<Address>
+  addAddresses: (addressList: { address: string; description: string }[]) => Promise<{
     added: Address[]
     errors: string[]
     corrected: string[]
-  }
+  }>
   removeAddress: (id: string) => void
   updateAddress: (id: string, updates: Partial<Address>) => void
   createRoute: (name: string, selectedAddresses?: Address[]) => DeliveryRoute
@@ -198,7 +251,7 @@ export const AddressesProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   }, [])
 
   const addAddress = useCallback(
-    (address: string, description = "") => {
+    async (address: string, description = "") => {
       const validation = validateAddress(address)
 
       if (!validation.isValid) {
@@ -213,13 +266,19 @@ export const AddressesProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         throw new Error("Address already exists")
       }
 
+      const coordinates = await geocodeAddress(validation.corrected)
+
+      if (coordinates === null) {
+        throw new Error("Unable to geocode address. Please check the address format.")
+      }
+
       const newAddress: Address = {
         id: `addr-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         address: validation.corrected,
         description,
         dateAdded: new Date().toISOString(),
         timesUsed: 0,
-        coordinates: generateMockCoordinates(),
+        coordinates,
       }
 
       persistAddresses((prev) => [...prev, newAddress])
@@ -229,20 +288,20 @@ export const AddressesProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   )
 
   const addAddresses = useCallback(
-    (addressList: { address: string; description: string }[]) => {
+    async (addressList: { address: string; description: string }[]) => {
       const uniqueAddressList = removeDuplicates(addressList)
 
       const newAddresses: Address[] = []
       const errors: string[] = []
       const corrected: string[] = []
 
-      uniqueAddressList.forEach(({ address, description }) => {
+      for (const { address, description } of uniqueAddressList) {
         try {
           const validation = validateAddress(address)
 
           if (!validation.isValid) {
             errors.push(`Invalid address "${address}": ${validation.errors.join(", ")}`)
-            return
+            continue
           }
 
           if (validation.corrected !== address.trim()) {
@@ -255,7 +314,7 @@ export const AddressesProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
           if (isDuplicateInExisting) {
             errors.push(`Duplicate address: ${validation.corrected}`)
-            return
+            continue
           }
 
           const isDuplicateInNew = newAddresses.some(
@@ -264,7 +323,14 @@ export const AddressesProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
           if (isDuplicateInNew) {
             errors.push(`Duplicate in import: ${validation.corrected}`)
-            return
+            continue
+          }
+
+          const coordinates = await geocodeAddress(validation.corrected)
+
+          if (coordinates === null) {
+            errors.push(`Failed to geocode: ${validation.corrected}`)
+            continue
           }
 
           const newAddress: Address = {
@@ -273,14 +339,14 @@ export const AddressesProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             description,
             dateAdded: new Date().toISOString(),
             timesUsed: 0,
-            coordinates: generateMockCoordinates(),
+            coordinates,
           }
 
           newAddresses.push(newAddress)
         } catch (error) {
           errors.push(`Error adding ${address}: ${error}`)
         }
-      })
+      }
 
       if (newAddresses.length > 0) {
         persistAddresses((prev) => [...prev, ...newAddresses])

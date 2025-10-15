@@ -31,11 +31,11 @@ export function AddressManager({ onCreateRoute }: AddressManagerProps) {
       (addr.description && addr.description.toLowerCase().includes(searchTerm.toLowerCase())),
   )
 
-  const handleAddSingle = () => {
+  const handleAddSingle = async () => {
     if (!newAddress.trim()) return
 
     try {
-      addAddress(newAddress.trim(), newDescription.trim())
+      await addAddress(newAddress.trim(), newDescription.trim())
       setNewAddress("")
       setNewDescription("")
     } catch (error) {
@@ -43,7 +43,7 @@ export function AddressManager({ onCreateRoute }: AddressManagerProps) {
     }
   }
 
-  const handleBulkImport = () => {
+  const handleBulkImport = async () => {
     if (!bulkAddresses.trim()) return
 
     const lines = bulkAddresses.split(/\r?\n/).filter((line) => line.trim())
@@ -57,7 +57,7 @@ export function AddressManager({ onCreateRoute }: AddressManagerProps) {
       })
       .filter((item) => item.address)
 
-    const result = addAddresses(addressList)
+    const result = await addAddresses(addressList)
 
     let message = `Successfully added ${result.added.length} addresses.`
 
