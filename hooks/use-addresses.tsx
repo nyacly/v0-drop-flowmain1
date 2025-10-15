@@ -109,6 +109,59 @@ const removeDuplicates = (
   })
 }
 
+// Helper function to wait for Google Maps API to load
+const waitForGoogleMaps = (): Promise<boolean> => {
+  return new Promise((resolve) => {
+    if (typeof window !== 'undefined' && window.google?.maps) {
+      resolve(true)
+      return
+    }
+
+    let attempts = 0
+    const maxAttempts = 50 // 5 seconds total (50 * 100ms)
+
+    const checkInterval = setInterval(() => {
+      attempts++
+
+      if (typeof window !== 'undefined' && window.google?.maps) {
+        clearInterval(checkInterval)
+        resolve(true)
+      } else if (attempts >= maxAttempts) {
+        clearInterval(checkInterval)
+        resolve(false)
+      }
+    }, 100)
+  })
+}
+
+// Real geocoding using Google Maps Geocoding API
+const geocodeAddress = async (address: string): Promise<{ lat: number; lng: number } | null> => {
+  const isReady = await waitForGoogleMaps()
+
+  if (!isReady) {
+    console.error('Google Maps API not loaded')
+    return null
+  }
+
+  try {
+    const geocoder = new window.google.maps.Geocoder()
+    const result = await geocoder.geocode({ address })
+
+    if (result.results && result.results.length > 0) {
+      const location = result.results[0].geometry.location
+      return {
+        lat: location.lat(),
+        lng: location.lng()
+      }
+    }
+
+    return null
+  } catch (error) {
+    console.error('Geocoding error:', error)
+    return null
+  }
+}
+
 // Simulate geocoding by generating random coordinates around a central point
 const generateMockCoordinates = (): { lat: number; lng: number } => {
   // Brisbane, AU
@@ -125,12 +178,12 @@ const generateMockCoordinates = (): { lat: number; lng: number } => {
 interface AddressesContextValue {
   addresses: Address[]
   routes: DeliveryRoute[]
-  addAddress: (address: string, description?: string) => Address
-  addAddresses: (addressList: { address: string; description: string }[]) => {
+  addAddress: (address: string, description?: string) => Promise<Address>
+  addAddresses: (addressList: { address: string; description: string }[]) => Promise<{
     added: Address[]
     errors: string[]
     corrected: string[]
-  }
+  }>
   removeAddress: (id: string) => void
   updateAddress: (id: string, updates: Partial<Address>) => void
   createRoute: (name: string, selectedAddresses?: Address[]) => DeliveryRoute
