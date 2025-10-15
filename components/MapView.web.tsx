@@ -14,6 +14,7 @@ interface Stop {
 
 interface MapViewProps {
   stops: Stop[]
+  showRoute?: boolean
 }
 
 const API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY
@@ -46,10 +47,11 @@ const loadScript = (apiKey: string): Promise<void> => {
   })
 }
 
-const MapView: React.FC<MapViewProps> = ({ stops }) => {
+const MapView: React.FC<MapViewProps> = ({ stops, showRoute = false }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<google.maps.Map | null>(null)
   const markersRef = useRef<google.maps.Marker[]>([])
+  const directionsRendererRef = useRef<google.maps.DirectionsRenderer | null>(null)
   const [isApiLoaded, setIsApiLoaded] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -76,54 +78,118 @@ const MapView: React.FC<MapViewProps> = ({ stops }) => {
       mapId: "DROPFLOW_MAP_ID",
       disableDefaultUI: true,
     })
+
+    // Initialize DirectionsRenderer
+    directionsRendererRef.current = new window.google.maps.DirectionsRenderer({
+      map: mapInstanceRef.current,
+      suppressMarkers: false, // Show start/end markers
+      preserveViewport: false, // Let it auto-fit bounds
+    })
   }, [isApiLoaded])
 
-  // Effect to update markers and map bounds when stops change
+  // Effect to show route or markers based on showRoute prop
   useEffect(() => {
     const map = mapInstanceRef.current
-    if (!map) return
+    const directionsRenderer = directionsRendererRef.current
+    if (!map || !isApiLoaded) return
 
-    // Clear existing markers from the map and the ref
+    // Clear existing markers
     markersRef.current.forEach((marker) => marker.setMap(null))
     markersRef.current = []
 
     const validStops = stops.filter((stop) => stop.coordinates && stop.coordinates.lat && stop.coordinates.lng)
 
     if (validStops.length === 0) {
+      // Clear any existing route
+      if (directionsRenderer) {
+        directionsRenderer.setMap(null)
+      }
       map.setCenter({ lat: -27.4705, lng: 153.026 })
       map.setZoom(12)
       return
     }
 
-    const bounds = new window.google.maps.LatLngBounds()
+    if (showRoute && validStops.length >= 2) {
+      // Show route using DirectionsService
+      const directionsService = new window.google.maps.DirectionsService()
 
-    validStops.forEach((stop, index) => {
-      if (stop.coordinates) {
-        const marker = new window.google.maps.Marker({
-          position: stop.coordinates,
-          map,
-          title: stop.address,
-          label: {
-            text: `${index + 1}`,
-            color: "white",
-            fontWeight: "bold",
+      // Only show pending stops in the route
+      const pendingStops = validStops.filter(stop => stop.status === "pending")
+      
+      if (pendingStops.length >= 2) {
+        const origin = pendingStops[0].coordinates!
+        const destination = pendingStops[pendingStops.length - 1].coordinates!
+        const waypoints = pendingStops.slice(1, -1).map(stop => ({
+          location: new window.google.maps.LatLng(stop.coordinates!.lat, stop.coordinates!.lng),
+          stopover: true
+        }))
+
+        directionsService.route(
+          {
+            origin: new window.google.maps.LatLng(origin.lat, origin.lng),
+            destination: new window.google.maps.LatLng(destination.lat, destination.lng),
+            waypoints: waypoints,
+            travelMode: window.google.maps.TravelMode.DRIVING,
+            optimizeWaypoints: false, // Keep the order as-is
           },
-        })
-        markersRef.current.push(marker)
-        bounds.extend(stop.coordinates)
+          (result, status) => {
+            if (status === window.google.maps.DirectionsStatus.OK && result) {
+              if (directionsRenderer) {
+                directionsRenderer.setMap(map)
+                directionsRenderer.setDirections(result)
+              }
+            } else {
+              console.error('Directions request failed:', status)
+              // Fall back to showing markers
+              showMarkersOnly()
+            }
+          }
+        )
+      } else {
+        // Not enough pending stops for a route, show markers
+        showMarkersOnly()
       }
-    })
-
-    // This is the key fix for the "blue map" issue.
-    // We trigger a resize event and then fit the bounds.
-    setTimeout(() => {
-      google.maps.event.trigger(map, "resize")
-      if (validStops.length > 0) {
-        map.fitBounds(bounds, 100) // 100px padding
+    } else {
+      // Show markers only
+      if (directionsRenderer) {
+        directionsRenderer.setMap(null)
       }
-    }, 100) // A small delay ensures the container has its final size.
+      showMarkersOnly()
+    }
 
-  }, [stops, isApiLoaded])
+    function showMarkersOnly() {
+      if (directionsRenderer) {
+        directionsRenderer.setMap(null)
+      }
+      
+      const bounds = new window.google.maps.LatLngBounds()
+
+      validStops.forEach((stop, index) => {
+        if (stop.coordinates) {
+          const marker = new window.google.maps.Marker({
+            position: stop.coordinates,
+            map,
+            title: stop.address,
+            label: {
+              text: `${index + 1}`,
+              color: "white",
+              fontWeight: "bold",
+            },
+          })
+          markersRef.current.push(marker)
+          bounds.extend(stop.coordinates)
+        }
+      })
+
+      setTimeout(() => {
+        google.maps.event.trigger(map, "resize")
+        if (validStops.length > 0) {
+          map.fitBounds(bounds, 100)
+        }
+      }, 100)
+    }
+
+  }, [stops, isApiLoaded, showRoute])
 
   if (error) {
     return (
