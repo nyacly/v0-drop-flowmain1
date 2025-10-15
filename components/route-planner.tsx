@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -27,14 +28,15 @@ interface RoutePlannerProps {
 export function RoutePlanner({ stops, onUpdateStatus, onReorder, onNavigateBack }: RoutePlannerProps) {
   const { routes } = useAddresses()
   const activeRoute = routes.find((route) => route.status === "active")
+  const [showRoute, setShowRoute] = useState(false)
 
   // Filter pending stops for navigation
   const pendingStops = stops.filter((stop) => stop.status === "pending")
 
-  const handleNavigateRoute = () => {
+  const handleToggleRoute = () => {
     // Check if we have at least 2 pending stops
     if (pendingStops.length < 2) {
-      window.alert("Need at least 2 stops to navigate")
+      window.alert("Need at least 2 stops to show navigation route")
       return
     }
 
@@ -45,16 +47,8 @@ export function RoutePlanner({ stops, onUpdateStatus, onReorder, onNavigateBack 
       return
     }
 
-    // Build Google Maps URL with all pending stops
-    const coordinateStrings = pendingStops.map((stop) => {
-      return `${stop.coordinates!.lat},${stop.coordinates!.lng}`
-    })
-
-    // Format: https://www.google.com/maps/dir/START_LAT,START_LNG/WAYPOINT1_LAT,WAYPOINT1_LNG/.../END_LAT,END_LNG
-    const googleMapsUrl = `https://www.google.com/maps/dir/${coordinateStrings.join("/")}`
-
-    // Navigate to Google Maps in same tab
-    window.location.href = googleMapsUrl
+    // Toggle the route display
+    setShowRoute(!showRoute)
   }
 
   return (
@@ -77,12 +71,12 @@ export function RoutePlanner({ stops, onUpdateStatus, onReorder, onNavigateBack 
           <Card className="h-[600px]">
             {pendingStops.length >= 2 && (
               <div className="p-4 border-b">
-                <Button onClick={handleNavigateRoute} className="w-full">
-                  🗺️ Navigate Full Route ({pendingStops.length} stops)
+                <Button onClick={handleToggleRoute} className="w-full">
+                  {showRoute ? "🗺️ Hide Navigation Route" : `🗺️ Show Navigation Route (${pendingStops.length} stops)`}
                 </Button>
               </div>
             )}
-            <MapView stops={stops} />
+            <MapView stops={stops} showRoute={showRoute} />
           </Card>
         </div>
         <div className="lg:col-span-1">
