@@ -28,6 +28,35 @@ export function RoutePlanner({ stops, onUpdateStatus, onReorder, onNavigateBack 
   const { routes } = useAddresses()
   const activeRoute = routes.find((route) => route.status === "active")
 
+  // Filter pending stops for navigation
+  const pendingStops = stops.filter((stop) => stop.status === "pending")
+
+  const handleNavigateRoute = () => {
+    // Check if we have at least 2 pending stops
+    if (pendingStops.length < 2) {
+      window.alert("Need at least 2 stops to navigate")
+      return
+    }
+
+    // Check if all pending stops have coordinates
+    const hasAllCoordinates = pendingStops.every((stop) => stop.coordinates)
+    if (!hasAllCoordinates) {
+      window.alert("Some addresses couldn't be geocoded. Please re-add them.")
+      return
+    }
+
+    // Build Google Maps URL with all pending stops
+    const coordinateStrings = pendingStops.map((stop) => {
+      return `${stop.coordinates!.lat},${stop.coordinates!.lng}`
+    })
+
+    // Format: https://www.google.com/maps/dir/START_LAT,START_LNG/WAYPOINT1_LAT,WAYPOINT1_LNG/.../END_LAT,END_LNG
+    const googleMapsUrl = `https://www.google.com/maps/dir/${coordinateStrings.join("/")}`
+
+    // Navigate to Google Maps in same tab
+    window.location.href = googleMapsUrl
+  }
+
   return (
     <div className="space-y-6">
       <Button onClick={onNavigateBack} variant="outline">
@@ -46,6 +75,13 @@ export function RoutePlanner({ stops, onUpdateStatus, onReorder, onNavigateBack 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2">
           <Card className="h-[600px]">
+            {pendingStops.length >= 2 && (
+              <div className="p-4 border-b">
+                <Button onClick={handleNavigateRoute} className="w-full">
+                  🗺️ Navigate Full Route ({pendingStops.length} stops)
+                </Button>
+              </div>
+            )}
             <MapView stops={stops} />
           </Card>
         </div>
