@@ -251,7 +251,7 @@ export const AddressesProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   }, [])
 
   const addAddress = useCallback(
-    (address: string, description = "") => {
+    async (address: string, description = "") => {
       const validation = validateAddress(address)
 
       if (!validation.isValid) {
@@ -266,13 +266,19 @@ export const AddressesProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         throw new Error("Address already exists")
       }
 
+      const coordinates = await geocodeAddress(validation.corrected)
+
+      if (coordinates === null) {
+        throw new Error("Unable to geocode address. Please check the address format.")
+      }
+
       const newAddress: Address = {
         id: `addr-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         address: validation.corrected,
         description,
         dateAdded: new Date().toISOString(),
         timesUsed: 0,
-        coordinates: generateMockCoordinates(),
+        coordinates,
       }
 
       persistAddresses((prev) => [...prev, newAddress])
