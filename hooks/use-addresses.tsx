@@ -288,20 +288,20 @@ export const AddressesProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   )
 
   const addAddresses = useCallback(
-    (addressList: { address: string; description: string }[]) => {
+    async (addressList: { address: string; description: string }[]) => {
       const uniqueAddressList = removeDuplicates(addressList)
 
       const newAddresses: Address[] = []
       const errors: string[] = []
       const corrected: string[] = []
 
-      uniqueAddressList.forEach(({ address, description }) => {
+      for (const { address, description } of uniqueAddressList) {
         try {
           const validation = validateAddress(address)
 
           if (!validation.isValid) {
             errors.push(`Invalid address "${address}": ${validation.errors.join(", ")}`)
-            return
+            continue
           }
 
           if (validation.corrected !== address.trim()) {
@@ -314,7 +314,7 @@ export const AddressesProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
           if (isDuplicateInExisting) {
             errors.push(`Duplicate address: ${validation.corrected}`)
-            return
+            continue
           }
 
           const isDuplicateInNew = newAddresses.some(
@@ -323,7 +323,14 @@ export const AddressesProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
           if (isDuplicateInNew) {
             errors.push(`Duplicate in import: ${validation.corrected}`)
-            return
+            continue
+          }
+
+          const coordinates = await geocodeAddress(validation.corrected)
+
+          if (coordinates === null) {
+            errors.push(`Failed to geocode: ${validation.corrected}`)
+            continue
           }
 
           const newAddress: Address = {
@@ -332,14 +339,14 @@ export const AddressesProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             description,
             dateAdded: new Date().toISOString(),
             timesUsed: 0,
-            coordinates: generateMockCoordinates(),
+            coordinates,
           }
 
           newAddresses.push(newAddress)
         } catch (error) {
           errors.push(`Error adding ${address}: ${error}`)
         }
-      })
+      }
 
       if (newAddresses.length > 0) {
         persistAddresses((prev) => [...prev, ...newAddresses])
