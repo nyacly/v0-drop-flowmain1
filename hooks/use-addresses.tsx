@@ -173,10 +173,19 @@ const geocodeWithTimeout = async (
   try {
     const geocoder = new window.google.maps.Geocoder()
     
+    // Brisbane/Southeast Queensland bounds for better geocoding of incomplete addresses
+    const brisbaneCenter = new window.google.maps.LatLng(-27.4705, 153.026)
+    const brisbaneBounds = new window.google.maps.LatLngBounds(
+      new window.google.maps.LatLng(-28.2, 152.4), // Southwest corner (roughly Gold Coast)
+      new window.google.maps.LatLng(-26.7, 153.6)  // Northeast corner (roughly Sunshine Coast)
+    )
+    
     const geocodingPromise = geocoder.geocode({ 
       address,
       region: 'AU',  // Bias results toward Australia
-      componentRestrictions: { country: 'AU' }  // Restrict to Australia
+      componentRestrictions: { country: 'AU' },  // Restrict to Australia
+      bounds: brisbaneBounds,  // Prioritize Brisbane/SE Queensland area
+      location: brisbaneCenter  // Center point for location biasing
     }).then((result) => {
       if (result.results && result.results.length > 0) {
         const location = result.results[0].geometry.location
