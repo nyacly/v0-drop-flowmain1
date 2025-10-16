@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge"
 import MapView from "@/components/MapView.web"
 import { DeliveryProgress } from "@/components/delivery-progress"
 import { useAddresses } from "@/hooks/use-addresses"
+import { useState } from "react"
 
 // Mock data and types from app/page.tsx
 interface Stop {
@@ -27,6 +28,7 @@ interface RoutePlannerProps {
 export function RoutePlanner({ stops, onUpdateStatus, onReorder, onNavigateBack }: RoutePlannerProps) {
   const { routes } = useAddresses()
   const activeRoute = routes.find((route) => route.status === "active")
+  const [showRoute, setShowRoute] = useState(false)
 
   // Filter pending stops for navigation
   const pendingStops = stops.filter((stop) => stop.status === "pending")
@@ -77,12 +79,21 @@ export function RoutePlanner({ stops, onUpdateStatus, onReorder, onNavigateBack 
           <Card className="h-[600px]">
             {pendingStops.length >= 2 && (
               <div className="p-4 border-b">
-                <Button onClick={handleNavigateRoute} className="w-full">
-                  🗺️ Navigate Full Route ({pendingStops.length} stops)
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    onClick={() => setShowRoute(!showRoute)}
+                    variant="outline"
+                    className="flex-1"
+                  >
+                    {showRoute ? "Hide Route" : "Show Route"}
+                  </Button>
+                  <Button onClick={handleNavigateRoute} className="flex-1">
+                    🗺️ Navigate Full Route ({pendingStops.length} stops)
+                  </Button>
+                </div>
               </div>
             )}
-            <MapView stops={stops} />
+            <MapView stops={stops} showRoute={showRoute} />
           </Card>
         </div>
         <div className="lg:col-span-1">
