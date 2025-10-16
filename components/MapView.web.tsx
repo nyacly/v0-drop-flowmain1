@@ -55,6 +55,7 @@ const MapView: React.FC<MapViewProps> = ({ stops, showRoute }) => {
   const directionsServiceRef = useRef<google.maps.DirectionsService | null>(null)
   const [isApiLoaded, setIsApiLoaded] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [routeError, setRouteError] = useState<string | null>(null)
 
   // Effect to load the Google Maps API script
   useEffect(() => {
@@ -139,6 +140,8 @@ const MapView: React.FC<MapViewProps> = ({ stops, showRoute }) => {
         directionsRendererRef.current.setMap(null)
         directionsRendererRef.current = null
       }
+      // Clear route error when showRoute is false
+      setRouteError(null)
       return
     }
 
@@ -147,8 +150,12 @@ const MapView: React.FC<MapViewProps> = ({ stops, showRoute }) => {
 
     // Need at least 2 stops to create a route
     if (validStops.length < 2) {
+      setRouteError("Cannot display route: Your addresses are missing GPS coordinates. This usually happens when addresses were added before the Google Maps API key was configured. To fix: Go to Address Manager and click 'Refresh Coordinates' to re-geocode all addresses.")
       return
     }
+
+    // Clear error if we have valid stops
+    setRouteError(null)
 
     // Initialize DirectionsService if not exists
     if (!directionsServiceRef.current) {
@@ -190,8 +197,11 @@ const MapView: React.FC<MapViewProps> = ({ stops, showRoute }) => {
             strokeOpacity: 0.8,
           },
         })
+        // Clear any route errors on success
+        setRouteError(null)
       } else {
-        // Log error but don't show error UI
+        // Set error message for DirectionsService failures
+        setRouteError(`Unable to calculate route: ${status}. Please check your addresses and try again.`)
         console.error('DirectionsService failed with status:', status)
       }
     })
@@ -224,7 +234,25 @@ const MapView: React.FC<MapViewProps> = ({ stops, showRoute }) => {
     <div
       ref={mapContainerRef}
       className="w-full h-full rounded-lg overflow-hidden shadow-md bg-gray-200"
-    />
+    >
+      {/* Route Error Overlay */}
+      {routeError && (
+        <div className="absolute inset-0 flex items-center justify-center p-4 pointer-events-none z-10">
+          <div className="bg-yellow-50 border-2 border-yellow-400 rounded-lg p-6 max-w-md shadow-lg pointer-events-auto">
+            <div className="flex items-start gap-3">
+              <span className="text-2xl">⚠️</span>
+              <div className="flex-1">
+                <h3 className="font-semibold text-yellow-800 mb-2">Route Display Issue</h3>
+                <p className="text-sm text-yellow-700 mb-3">{routeError}</p>
+                <p className="text-xs text-yellow-600">
+                  Tip: Ensure EXPO_PUBLIC_GOOGLE_MAPS_API_KEY is configured in your environment variables.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   )
 }
 

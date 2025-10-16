@@ -189,6 +189,7 @@ interface AddressesContextValue {
   createRoute: (name: string, selectedAddresses?: Address[]) => DeliveryRoute
   updateRoute: (id: string, updates: Partial<DeliveryRoute>) => void
   deleteRoute: (id: string) => void
+  reGeocodeAllAddresses: () => Promise<{ success: number; failed: number; errors: string[] }>
 }
 
 const AddressesContext = createContext<AddressesContextValue | undefined>(undefined)
@@ -409,6 +410,68 @@ export const AddressesProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     [persistRoutes],
   )
 
+  const reGeocodeAllAddresses = useCallback(async (): Promise<{ success: number; failed: number; errors: string[] }> => {
+    // Check if Google Maps API is available
+    const isReady = await waitForGoogleMaps()
+    
+    if (!isReady) {
+      return {
+        success: 0,
+        failed: 0,
+        errors: ["Google Maps API not loaded. Check your API key."]
+      }
+    }
+
+    let successCount = 0
+    let failedCount = 0
+    const errorMessages: string[] = []
+    const updatedAddresses: Address[] = []
+
+    // Process each address
+    for (const address of addresses) {
+      // Skip if address already has valid coordinates
+      if (address.coordinates && address.coordinates.lat && address.coordinates.lng) {
+        updatedAddresses.push(address)
+        continue
+      }
+
+      // Try to geocode the address
+      try {
+        const coordinates = await geocodeAddress(address.address)
+        
+        if (coordinates) {
+          // Successfully geocoded
+          updatedAddresses.push({ ...address, coordinates })
+          successCount++
+        } else {
+          // Geocoding returned null
+          updatedAddresses.push(address)
+          failedCount++
+          errorMessages.push(`${address.address} - geocoding failed`)
+        }
+      } catch (error) {
+        // Exception during geocoding
+        updatedAddresses.push(address)
+        failedCount++
+        errorMessages.push(`${address.address} - ${error instanceof Error ? error.message : 'unknown error'}`)
+      }
+
+      // Add small delay to avoid rate limits (100ms between requests)
+      await new Promise(resolve => setTimeout(resolve, 100))
+    }
+
+    // Batch update all addresses at once
+    if (successCount > 0) {
+      persistAddresses(updatedAddresses)
+    }
+
+    return {
+      success: successCount,
+      failed: failedCount,
+      errors: errorMessages
+    }
+  }, [addresses, persistAddresses])
+
   const value = useMemo(
     () => ({
       addresses,
@@ -420,6 +483,7 @@ export const AddressesProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       createRoute,
       updateRoute,
       deleteRoute,
+      reGeocodeAllAddresses,
     }),
     [
       addAddress,
@@ -431,6 +495,7 @@ export const AddressesProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       routes,
       updateAddress,
       updateRoute,
+      reGeocodeAllAddresses,
     ],
   )
 
