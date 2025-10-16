@@ -151,6 +151,7 @@ export function AddressManager({ onCreateRoute }: AddressManagerProps) {
 
     if (result.skipped && result.skipped.length > 0) {
       message += `\n\n${result.skipped.length} addresses skipped (geocoding failed after retries):\n${result.skipped.slice(0, 5).join("\n")}${result.skipped.length > 5 ? `\n...and ${result.skipped.length - 5} more` : ''}`
+      message += `\n\n💡 Tip: For better geocoding results, include suburb, city, or state information.\nExample: "38 Timbury Street, Brisbane QLD" instead of "38 Timbury St"`
     }
 
     if (result.corrected && result.corrected.length > 0) {
