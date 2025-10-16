@@ -29,7 +29,7 @@ const autoCorrectAddress = (address: string): string => {
   // Capitalize first letter of each word
   corrected = corrected.replace(/\b\w/g, (char) => char.toUpperCase())
 
-  // Common abbreviation corrections
+  // Common abbreviation corrections (Australian and international)
   const corrections: Record<string, string> = {
     " St ": " Street ",
     " St,": " Street,",
@@ -55,6 +55,30 @@ const autoCorrectAddress = (address: string): string => {
     " Pl ": " Place ",
     " Pl,": " Place,",
     " Pl$": " Place",
+    " Cl ": " Close ",
+    " Cl,": " Close,",
+    " Cl$": " Close",
+    " Pde ": " Parade ",
+    " Pde,": " Parade,",
+    " Pde$": " Parade",
+    " Cres ": " Crescent ",
+    " Cres,": " Crescent,",
+    " Cres$": " Crescent",
+    " Cct ": " Circuit ",
+    " Cct,": " Circuit,",
+    " Cct$": " Circuit",
+    " Gr ": " Grove ",
+    " Gr,": " Grove,",
+    " Gr$": " Grove",
+    " Esp ": " Esplanade ",
+    " Esp,": " Esplanade,",
+    " Esp$": " Esplanade",
+    " Hwy ": " Highway ",
+    " Hwy,": " Highway,",
+    " Hwy$": " Highway",
+    " Tce ": " Terrace ",
+    " Tce,": " Terrace,",
+    " Tce$": " Terrace",
   }
 
   Object.entries(corrections).forEach(([abbrev, full]) => {
@@ -82,8 +106,8 @@ const validateAddress = (address: string): { isValid: boolean; corrected: string
     errors.push("Address should contain letters")
   }
 
-  // Check for common address components
-  const hasStreetType = /\b(street|avenue|road|drive|boulevard|lane|court|place|way|circle|terrace)\b/i.test(corrected)
+  // Check for common address components (expanded for Australian street types)
+  const hasStreetType = /\b(street|avenue|road|drive|boulevard|lane|court|place|way|circle|terrace|close|parade|crescent|circuit|grove|esplanade|highway|gardens)\b/i.test(corrected)
   if (!hasStreetType) {
     errors.push("Address should include a street type (Street, Avenue, Road, etc.)")
   }
