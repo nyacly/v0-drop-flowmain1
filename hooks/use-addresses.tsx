@@ -149,7 +149,11 @@ const geocodeWithTimeout = async (
   try {
     const geocoder = new window.google.maps.Geocoder()
     
-    const geocodingPromise = geocoder.geocode({ address }).then((result) => {
+    const geocodingPromise = geocoder.geocode({ 
+      address,
+      region: 'AU',  // Bias results toward Australia
+      componentRestrictions: { country: 'AU' }  // Restrict to Australia
+    }).then((result) => {
       if (result.results && result.results.length > 0) {
         const location = result.results[0].geometry.location
         return {
