@@ -151,6 +151,7 @@ export function AddressManager({ onCreateRoute }: AddressManagerProps) {
 
     if (result.skipped && result.skipped.length > 0) {
       message += `\n\n${result.skipped.length} addresses skipped (geocoding failed after retries):\n${result.skipped.slice(0, 5).join("\n")}${result.skipped.length > 5 ? `\n...and ${result.skipped.length - 5} more` : ''}`
+      message += `\n\n💡 Tip: For better geocoding results, include suburb, city, or state information.\nExample: "38 Timbury Street, Brisbane QLD" instead of "38 Timbury St"`
     }
 
     if (result.corrected && result.corrected.length > 0) {
@@ -485,19 +486,29 @@ export function AddressManager({ onCreateRoute }: AddressManagerProps) {
           </DialogHeader>
           
           {failedAddress && (
-            <div className="py-4">
-              <div className="p-3 bg-gray-100 rounded-md mb-4">
+            <div className="py-4 space-y-4">
+              <div className="p-3 bg-gray-100 rounded-md">
                 <p className="font-mono text-sm">{failedAddress.address}</p>
               </div>
+              
+              <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
+                <p className="text-sm font-medium text-blue-900 mb-2">💡 Try adding more location details:</p>
+                <ul className="text-xs text-blue-800 space-y-1">
+                  <li>• Add suburb or city: "{failedAddress.address}, Brisbane QLD"</li>
+                  <li>• Add state: "{failedAddress.address}, Queensland"</li>
+                  <li>• Add postcode: "{failedAddress.address}, QLD 4000"</li>
+                </ul>
+              </div>
+
               <p className="text-sm text-muted-foreground">
-                The address can still be saved, but it won't appear on maps or in routes until coordinates are added. You can try again now or add it without coordinates.
+                Click <strong>Cancel</strong> to edit the address, or click <strong>Add Anyway</strong> to save it without coordinates (won't appear on maps until coordinates are added later).
               </p>
             </div>
           )}
 
           <DialogFooter className="flex-col sm:flex-row gap-2">
             <Button onClick={handleCancelGeocodingDialog} variant="outline">
-              Cancel
+              Cancel & Edit
             </Button>
             <Button onClick={handleRetryGeocoding} variant="secondary">
               Retry Now
