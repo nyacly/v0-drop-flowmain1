@@ -1,13 +1,13 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Trash2, Plus, Package, MapPin, Calendar, Search } from "lucide-react"
+import { Trash2, Plus, Package, MapPin, Calendar, Search, RefreshCw, X, CheckCircle2, AlertCircle } from "lucide-react"
 import { useAddresses } from "@/hooks/use-addresses"
 
 interface AddressManagerProps {
@@ -15,7 +15,7 @@ interface AddressManagerProps {
 }
 
 export function AddressManager({ onCreateRoute }: AddressManagerProps) {
-  const { addresses, addAddress, addAddresses, removeAddress, updateAddress, createRoute } = useAddresses()
+  const { addresses, addAddress, addAddresses, removeAddress, updateAddress, createRoute, reGeocodeAllAddresses } = useAddresses()
   const [newAddress, setNewAddress] = useState("")
   const [newDescription, setNewDescription] = useState("")
   const [bulkAddresses, setBulkAddresses] = useState("")
@@ -23,6 +23,17 @@ export function AddressManager({ onCreateRoute }: AddressManagerProps) {
   const [routeName, setRouteName] = useState("")
   const [searchTerm, setSearchTerm] = useState("")
   const [showBulkImport, setShowBulkImport] = useState(false)
+  const [missingCoordinates, setMissingCoordinates] = useState<number>(0)
+  const [showWarningBanner, setShowWarningBanner] = useState<boolean>(true)
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false)
+
+  // Coordinate health check - detect addresses missing coordinates
+  useEffect(() => {
+    const missing = addresses.filter(
+      (addr) => !addr.coordinates || !addr.coordinates.lat || !addr.coordinates.lng
+    ).length
+    setMissingCoordinates(missing)
+  }, [addresses])
 
   // Filter addresses based on search term
   const filteredAddresses = addresses.filter(
@@ -104,8 +115,79 @@ export function AddressManager({ onCreateRoute }: AddressManagerProps) {
     alert(`Route "${route.name}" created with ${selectedAddressObjects.length} addresses`)
   }
 
+  const handleRefreshCoordinates = async () => {
+    // Show confirmation dialog
+    const confirmed = window.confirm(
+      "This will re-geocode all addresses missing coordinates using Google Maps API. This may take a few moments. Continue?"
+    )
+    
+    if (!confirmed) {
+      return
+    }
+
+    setIsRefreshing(true)
+
+    try {
+      const result = await reGeocodeAllAddresses()
+
+      // Show results
+      if (result.success > 0 && result.failed === 0) {
+        alert(`✓ Successfully refreshed ${result.success} address(es).`)
+      } else if (result.success > 0 && result.failed > 0) {
+        alert(`✓ Successfully refreshed ${result.success} address(es).\n⚠️ ${result.failed} address(es) could not be geocoded. They may have invalid addresses.`)
+      } else if (result.failed > 0) {
+        alert(`⚠️ ${result.failed} address(es) could not be geocoded. They may have invalid addresses.`)
+      } else if (result.errors.length > 0) {
+        alert(`Error: ${result.errors.join(", ")}`)
+      }
+
+      // Log detailed errors to console
+      if (result.errors.length > 0) {
+        console.log("Geocoding errors:", result.errors)
+      }
+    } catch (error) {
+      alert(`Error refreshing coordinates: ${error instanceof Error ? error.message : "Unknown error"}`)
+    } finally {
+      setIsRefreshing(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
+      {/* Warning Banner for Missing Coordinates */}
+      {missingCoordinates > 0 && showWarningBanner && (
+        <Card className="border-yellow-400 bg-yellow-50">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3 flex-1">
+                <span className="text-2xl">⚠️</span>
+                <p className="text-sm text-yellow-800">
+                  Warning: {missingCoordinates} address(es) are missing GPS coordinates and won't appear on maps or routes.
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  onClick={handleRefreshCoordinates}
+                  disabled={isRefreshing}
+                  size="sm"
+                  className="bg-yellow-600 hover:bg-yellow-700 text-white"
+                >
+                  {isRefreshing ? "Refreshing..." : "Refresh All Coordinates"}
+                </Button>
+                <Button
+                  onClick={() => setShowWarningBanner(false)}
+                  size="sm"
+                  variant="ghost"
+                  className="text-yellow-800 hover:text-yellow-900"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Add Single Address */}
       <Card>
         <CardHeader>
@@ -164,10 +246,21 @@ export function AddressManager({ onCreateRoute }: AddressManagerProps) {
       {/* Address List */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <MapPin className="h-5 w-5" />
-            My Addresses ({addresses.length})
-          </CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2">
+              <MapPin className="h-5 w-5" />
+              My Addresses ({addresses.length})
+            </CardTitle>
+            <Button
+              onClick={handleRefreshCoordinates}
+              disabled={isRefreshing}
+              size="sm"
+              variant="outline"
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? "animate-spin" : ""}`} />
+              {isRefreshing ? "Refreshing..." : "Refresh Coordinates"}
+            </Button>
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
           {/* Search */}
@@ -190,7 +283,14 @@ export function AddressManager({ onCreateRoute }: AddressManagerProps) {
                   onCheckedChange={(checked) => handleSelectAddress(address.id, checked as boolean)}
                 />
                 <div className="flex-1 min-w-0">
-                  <p className="font-medium truncate">{address.address}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="font-medium truncate">{address.address}</p>
+                    {address.coordinates && address.coordinates.lat && address.coordinates.lng ? (
+                      <CheckCircle2 className="h-4 w-4 text-green-600 flex-shrink-0" title="Has coordinates" />
+                    ) : (
+                      <AlertCircle className="h-4 w-4 text-yellow-600 flex-shrink-0" title="Missing coordinates - refresh needed" />
+                    )}
+                  </div>
                   {address.description && <p className="text-sm text-muted-foreground">{address.description}</p>}
                   <div className="flex items-center gap-2 mt-1">
                     <Badge variant="secondary" className="text-xs">
