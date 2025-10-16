@@ -19,34 +19,6 @@ interface MapViewProps {
 
 const API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY
 
-// Function to load the Google Maps script robustly
-const loadScript = (apiKey: string): Promise<void> => {
-  const scriptId = "google-maps-script"
-  return new Promise((resolve, reject) => {
-    if (window.google && window.google.maps) {
-      return resolve()
-    }
-    const existingScript = document.getElementById(scriptId) as HTMLScriptElement | null
-    if (existingScript) {
-      const onReady = () => {
-        existingScript.removeEventListener("load", onReady)
-        resolve()
-      }
-      existingScript.addEventListener("load", onReady)
-      return
-    }
-
-    const script = document.createElement("script")
-    script.id = scriptId
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=marker,directions`
-    script.async = true
-    script.defer = true
-    script.onload = () => resolve()
-    script.onerror = () => reject(new Error("Google Maps script failed to load."))
-    document.head.appendChild(script)
-  })
-}
-
 const MapView: React.FC<MapViewProps> = ({ stops, showRoute }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<google.maps.Map | null>(null)
@@ -57,15 +29,39 @@ const MapView: React.FC<MapViewProps> = ({ stops, showRoute }) => {
   const [error, setError] = useState<string | null>(null)
   const [routeError, setRouteError] = useState<string | null>(null)
 
-  // Effect to load the Google Maps API script
+  // Effect to wait for Google Maps API (loaded globally by GoogleMapsScriptLoader)
   useEffect(() => {
     if (!API_KEY) {
       setError("Google Maps API key is missing. Please configure it in your environment variables.")
       return
     }
-    loadScript(API_KEY)
-      .then(() => setIsApiLoaded(true))
-      .catch(() => setError("Failed to load Google Maps. Please check your API key and internet connection."))
+    
+    // Check if already loaded
+    if (window.google?.maps) {
+      setIsApiLoaded(true)
+      return
+    }
+    
+    // Poll for Google Maps API availability (loaded by GoogleMapsScriptLoader)
+    const checkInterval = setInterval(() => {
+      if (window.google?.maps) {
+        setIsApiLoaded(true)
+        clearInterval(checkInterval)
+      }
+    }, 100) // Check every 100ms
+    
+    // Timeout after 10 seconds
+    const timeout = setTimeout(() => {
+      clearInterval(checkInterval)
+      if (!window.google?.maps) {
+        setError("Failed to load Google Maps. Please check your API key and internet connection.")
+      }
+    }, 10000)
+    
+    return () => {
+      clearInterval(checkInterval)
+      clearTimeout(timeout)
+    }
   }, [])
 
   // Effect to initialize the map instance once the API is loaded
