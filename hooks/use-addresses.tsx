@@ -134,8 +134,11 @@ const waitForGoogleMaps = (): Promise<boolean> => {
   })
 }
 
-// Real geocoding using Google Maps Geocoding API
-const geocodeAddress = async (address: string): Promise<{ lat: number; lng: number } | null> => {
+// Geocode with timeout wrapper
+const geocodeWithTimeout = async (
+  address: string,
+  timeoutMs: number = 10000
+): Promise<{ lat: number; lng: number } | null> => {
   const isReady = await waitForGoogleMaps()
 
   if (!isReady) {
@@ -145,21 +148,61 @@ const geocodeAddress = async (address: string): Promise<{ lat: number; lng: numb
 
   try {
     const geocoder = new window.google.maps.Geocoder()
-    const result = await geocoder.geocode({ address })
-
-    if (result.results && result.results.length > 0) {
-      const location = result.results[0].geometry.location
-      return {
-        lat: location.lat(),
-        lng: location.lng()
+    
+    const geocodingPromise = geocoder.geocode({ address }).then((result) => {
+      if (result.results && result.results.length > 0) {
+        const location = result.results[0].geometry.location
+        return {
+          lat: location.lat(),
+          lng: location.lng()
+        }
       }
-    }
+      return null
+    })
 
-    return null
+    const timeoutPromise = new Promise<null>((resolve) => 
+      setTimeout(() => resolve(null), timeoutMs)
+    )
+
+    return await Promise.race([geocodingPromise, timeoutPromise])
   } catch (error) {
     console.error('Geocoding error:', error)
     return null
   }
+}
+
+// Geocode with retry logic and exponential backoff
+const geocodeAddressWithRetry = async (
+  address: string
+): Promise<{ success: boolean; coordinates: { lat: number; lng: number } | null; attempts: number }> => {
+  const maxAttempts = 4 // 1 initial + 3 retries
+  const delays = [0, 1000, 2000, 4000] // Exponential backoff: 0ms, 1s, 2s, 4s
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    console.log(`Geocoding attempt ${attempt + 1}/${maxAttempts} for: ${address}`)
+
+    // Wait before retry (skip for first attempt)
+    if (attempt > 0) {
+      await new Promise((resolve) => setTimeout(resolve, delays[attempt]))
+    }
+
+    const coordinates = await geocodeWithTimeout(address, 10000)
+
+    if (coordinates !== null) {
+      console.log(`Geocoding succeeded on attempt ${attempt + 1}`)
+      return { success: true, coordinates, attempts: attempt + 1 }
+    }
+
+    console.log(`Geocoding attempt ${attempt + 1} failed`)
+  }
+
+  console.log(`Geocoding failed after ${maxAttempts} attempts`)
+  return { success: false, coordinates: null, attempts: maxAttempts }
+}
+
+// Real geocoding using Google Maps Geocoding API
+const geocodeAddress = async (address: string): Promise<{ lat: number; lng: number } | null> => {
+  return await geocodeWithTimeout(address, 10000)
 }
 
 // Simulate geocoding by generating random coordinates around a central point
@@ -178,11 +221,17 @@ const generateMockCoordinates = (): { lat: number; lng: number } => {
 interface AddressesContextValue {
   addresses: Address[]
   routes: DeliveryRoute[]
-  addAddress: (address: string, description?: string) => Promise<Address>
-  addAddresses: (addressList: { address: string; description: string }[]) => Promise<{
+  isGeocoding: boolean
+  addAddress: (address: string, description?: string, skipGeocodingCheck?: boolean) => Promise<{ address: Address | null; geocodingFailed: boolean; attemptedAddress?: string }>
+  addAddressWithoutGeocoding: (address: string, description?: string) => Promise<Address>
+  addAddresses: (
+    addressList: { address: string; description: string }[],
+    onProgress?: (current: number, total: number, currentAddress: string, successful: number, skipped: number) => void
+  ) => Promise<{
     added: Address[]
     errors: string[]
     corrected: string[]
+    skipped: string[]
   }>
   removeAddress: (id: string) => void
   updateAddress: (id: string, updates: Partial<Address>) => void
@@ -204,6 +253,7 @@ type StateUpdater<T> = T | ((previous: T) => T)
 export const AddressesProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [addresses, setAddresses] = useState<Address[]>([])
   const [routes, setRoutes] = useState<DeliveryRoute[]>([])
+  const [isGeocoding, setIsGeocoding] = useState(false)
 
   // Load data from localStorage on initial mount
   useEffect(() => {
@@ -252,7 +302,7 @@ export const AddressesProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   }, [])
 
   const addAddress = useCallback(
-    async (address: string, description = "") => {
+    async (address: string, description = "", skipGeocodingCheck = false) => {
       const validation = validateAddress(address)
 
       if (!validation.isValid) {
@@ -267,10 +317,22 @@ export const AddressesProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         throw new Error("Address already exists")
       }
 
-      const coordinates = await geocodeAddress(validation.corrected)
+      let coordinates: { lat: number; lng: number } | undefined = undefined
 
-      if (coordinates === null) {
-        throw new Error("Unable to geocode address. Please check the address format.")
+      if (!skipGeocodingCheck) {
+        setIsGeocoding(true)
+        const geocodingResult = await geocodeAddressWithRetry(validation.corrected)
+        setIsGeocoding(false)
+
+        if (!geocodingResult.success) {
+          return {
+            address: null,
+            geocodingFailed: true,
+            attemptedAddress: validation.corrected
+          }
+        }
+
+        coordinates = geocodingResult.coordinates || undefined
       }
 
       const newAddress: Address = {
@@ -283,20 +345,46 @@ export const AddressesProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       }
 
       persistAddresses((prev) => [...prev, newAddress])
-      return newAddress
+      return { address: newAddress, geocodingFailed: false }
     },
     [addresses, persistAddresses],
   )
 
+  const addAddressWithoutGeocoding = useCallback(
+    async (address: string, description = "") => {
+      const result = await addAddress(address, description, true)
+      if (result.address) {
+        return result.address
+      }
+      throw new Error("Failed to add address")
+    },
+    [addAddress],
+  )
+
   const addAddresses = useCallback(
-    async (addressList: { address: string; description: string }[]) => {
+    async (
+      addressList: { address: string; description: string }[],
+      onProgress?: (current: number, total: number, currentAddress: string, successful: number, skipped: number) => void
+    ) => {
       const uniqueAddressList = removeDuplicates(addressList)
 
       const newAddresses: Address[] = []
       const errors: string[] = []
       const corrected: string[] = []
+      const skipped: string[] = []
 
-      for (const { address, description } of uniqueAddressList) {
+      setIsGeocoding(true)
+
+      let successfulCount = 0
+      let skippedCount = 0
+
+      for (let i = 0; i < uniqueAddressList.length; i++) {
+        const { address, description } = uniqueAddressList[i]
+
+        if (onProgress) {
+          onProgress(i + 1, uniqueAddressList.length, address, successfulCount, skippedCount)
+        }
+
         try {
           const validation = validateAddress(address)
 
@@ -327,10 +415,11 @@ export const AddressesProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             continue
           }
 
-          const coordinates = await geocodeAddress(validation.corrected)
+          const geocodingResult = await geocodeAddressWithRetry(validation.corrected)
 
-          if (coordinates === null) {
-            errors.push(`Failed to geocode: ${validation.corrected}`)
+          if (!geocodingResult.success) {
+            skipped.push(validation.corrected)
+            skippedCount++
             continue
           }
 
@@ -340,20 +429,23 @@ export const AddressesProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             description,
             dateAdded: new Date().toISOString(),
             timesUsed: 0,
-            coordinates,
+            coordinates: geocodingResult.coordinates || undefined,
           }
 
           newAddresses.push(newAddress)
+          successfulCount++
         } catch (error) {
           errors.push(`Error adding ${address}: ${error}`)
         }
       }
 
+      setIsGeocoding(false)
+
       if (newAddresses.length > 0) {
         persistAddresses((prev) => [...prev, ...newAddresses])
       }
 
-      return { added: newAddresses, errors, corrected }
+      return { added: newAddresses, errors, corrected, skipped }
     },
     [addresses, persistAddresses],
   )
@@ -476,7 +568,9 @@ export const AddressesProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     () => ({
       addresses,
       routes,
+      isGeocoding,
       addAddress,
+      addAddressWithoutGeocoding,
       addAddresses,
       removeAddress,
       updateAddress,
@@ -487,8 +581,10 @@ export const AddressesProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }),
     [
       addAddress,
+      addAddressWithoutGeocoding,
       addAddresses,
       addresses,
+      isGeocoding,
       createRoute,
       deleteRoute,
       removeAddress,

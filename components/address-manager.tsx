@@ -7,7 +7,8 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Trash2, Plus, Package, MapPin, Calendar, Search, RefreshCw, X, CheckCircle2, AlertCircle } from "lucide-react"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Trash2, Plus, Package, MapPin, Calendar, Search, RefreshCw, X, CheckCircle2, AlertCircle, Loader2 } from "lucide-react"
 import { useAddresses } from "@/hooks/use-addresses"
 
 interface AddressManagerProps {
@@ -15,7 +16,7 @@ interface AddressManagerProps {
 }
 
 export function AddressManager({ onCreateRoute }: AddressManagerProps) {
-  const { addresses, addAddress, addAddresses, removeAddress, updateAddress, createRoute, reGeocodeAllAddresses } = useAddresses()
+  const { addresses, addAddress, addAddressWithoutGeocoding, addAddresses, removeAddress, updateAddress, createRoute, reGeocodeAllAddresses } = useAddresses()
   const [newAddress, setNewAddress] = useState("")
   const [newDescription, setNewDescription] = useState("")
   const [bulkAddresses, setBulkAddresses] = useState("")
@@ -26,6 +27,21 @@ export function AddressManager({ onCreateRoute }: AddressManagerProps) {
   const [missingCoordinates, setMissingCoordinates] = useState<number>(0)
   const [showWarningBanner, setShowWarningBanner] = useState<boolean>(true)
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false)
+
+  // Single address loading and dialog states
+  const [isSingleAddLoading, setIsSingleAddLoading] = useState(false)
+  const [showGeocodingFailDialog, setShowGeocodingFailDialog] = useState(false)
+  const [failedAddress, setFailedAddress] = useState<{ address: string; description: string } | null>(null)
+
+  // Bulk import progress states
+  const [bulkProgress, setBulkProgress] = useState<{ current: number; total: number; currentAddress: string; successful: number; skipped: number } | null>(null)
+  const [isBulkImporting, setIsBulkImporting] = useState(false)
+
+  // Error dialog state
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+
+  // Success/info dialog state
+  const [infoMessage, setInfoMessage] = useState<string | null>(null)
 
   // Coordinate health check - detect addresses missing coordinates
   useEffect(() => {
@@ -45,13 +61,66 @@ export function AddressManager({ onCreateRoute }: AddressManagerProps) {
   const handleAddSingle = async () => {
     if (!newAddress.trim()) return
 
+    setIsSingleAddLoading(true)
+
     try {
-      await addAddress(newAddress.trim(), newDescription.trim())
+      const result = await addAddress(newAddress.trim(), newDescription.trim())
+
+      if (result.geocodingFailed) {
+        // Save failed address info and show dialog
+        setFailedAddress({ address: newAddress.trim(), description: newDescription.trim() })
+        setShowGeocodingFailDialog(true)
+        setIsSingleAddLoading(false)
+        return
+      }
+
+      // Success - clear inputs
       setNewAddress("")
       setNewDescription("")
+      setIsSingleAddLoading(false)
     } catch (error) {
-      alert(error instanceof Error ? error.message : "Error adding address")
+      setErrorMessage(error instanceof Error ? error.message : "Error adding address")
+      setIsSingleAddLoading(false)
     }
+  }
+
+  const handleAddWithoutGeocoding = async () => {
+    if (!failedAddress) return
+
+    try {
+      await addAddressWithoutGeocoding(failedAddress.address, failedAddress.description)
+      
+      // Success - clear inputs and close dialog
+      setNewAddress("")
+      setNewDescription("")
+      setShowGeocodingFailDialog(false)
+      setFailedAddress(null)
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Error adding address")
+    }
+  }
+
+  const handleRetryGeocoding = () => {
+    // Close dialog and retry with same data
+    setShowGeocodingFailDialog(false)
+    
+    if (failedAddress) {
+      setNewAddress(failedAddress.address)
+      setNewDescription(failedAddress.description)
+      setFailedAddress(null)
+      
+      // Small delay to allow dialog to close, then retry
+      setTimeout(() => {
+        handleAddSingle()
+      }, 100)
+    }
+  }
+
+  const handleCancelGeocodingDialog = () => {
+    setShowGeocodingFailDialog(false)
+    setFailedAddress(null)
+    setIsSingleAddLoading(false)
+    // Keep inputs filled so user can edit
   }
 
   const handleBulkImport = async () => {
@@ -68,19 +137,36 @@ export function AddressManager({ onCreateRoute }: AddressManagerProps) {
       })
       .filter((item) => item.address)
 
-    const result = await addAddresses(addressList)
+    setIsBulkImporting(true)
+    setBulkProgress({ current: 0, total: addressList.length, currentAddress: '', successful: 0, skipped: 0 })
 
+    const result = await addAddresses(addressList, (current, total, currentAddress, successful, skipped) => {
+      setBulkProgress({ current, total, currentAddress, successful, skipped })
+    })
+
+    setIsBulkImporting(false)
+
+    // Show results in dialog
     let message = `Successfully added ${result.added.length} addresses.`
 
+    if (result.skipped && result.skipped.length > 0) {
+      message += `\n\n${result.skipped.length} addresses skipped (geocoding failed after retries):\n${result.skipped.slice(0, 5).join("\n")}${result.skipped.length > 5 ? `\n...and ${result.skipped.length - 5} more` : ''}`
+    }
+
     if (result.corrected && result.corrected.length > 0) {
-      message += `\n\nAuto-corrected addresses:\n${result.corrected.join("\n")}`
+      message += `\n\nAuto-corrected addresses:\n${result.corrected.slice(0, 3).join("\n")}${result.corrected.length > 3 ? `\n...and ${result.corrected.length - 3} more` : ''}`
     }
 
     if (result.errors.length > 0) {
-      message += `\n\nErrors (${result.errors.length}):\n${result.errors.join("\n")}`
+      message += `\n\nValidation errors (${result.errors.length}):\n${result.errors.slice(0, 3).join("\n")}${result.errors.length > 3 ? `\n...and ${result.errors.length - 3} more` : ''}`
     }
 
-    alert(message)
+    setInfoMessage(message)
+
+    // Clear bulk progress after showing
+    setTimeout(() => {
+      setBulkProgress(null)
+    }, 1000)
 
     setBulkAddresses("")
     setShowBulkImport(false)
@@ -98,7 +184,7 @@ export function AddressManager({ onCreateRoute }: AddressManagerProps) {
 
   const handleCreateRoute = () => {
     if (!routeName.trim() || selectedAddresses.size === 0) {
-      alert("Please enter a route name and select at least one address")
+      setErrorMessage("Please enter a route name and select at least one address")
       return
     }
 
@@ -112,19 +198,10 @@ export function AddressManager({ onCreateRoute }: AddressManagerProps) {
       onCreateRoute(route.id)
     }
 
-    alert(`Route "${route.name}" created with ${selectedAddressObjects.length} addresses`)
+    setInfoMessage(`Route "${route.name}" created with ${selectedAddressObjects.length} addresses`)
   }
 
   const handleRefreshCoordinates = async () => {
-    // Show confirmation dialog
-    const confirmed = window.confirm(
-      "This will re-geocode all addresses missing coordinates using Google Maps API. This may take a few moments. Continue?"
-    )
-    
-    if (!confirmed) {
-      return
-    }
-
     setIsRefreshing(true)
 
     try {
@@ -132,13 +209,13 @@ export function AddressManager({ onCreateRoute }: AddressManagerProps) {
 
       // Show results
       if (result.success > 0 && result.failed === 0) {
-        alert(`✓ Successfully refreshed ${result.success} address(es).`)
+        setInfoMessage(`Successfully refreshed ${result.success} address(es).`)
       } else if (result.success > 0 && result.failed > 0) {
-        alert(`✓ Successfully refreshed ${result.success} address(es).\n⚠️ ${result.failed} address(es) could not be geocoded. They may have invalid addresses.`)
+        setInfoMessage(`Successfully refreshed ${result.success} address(es).\n\n${result.failed} address(es) could not be geocoded. They may have invalid addresses.`)
       } else if (result.failed > 0) {
-        alert(`⚠️ ${result.failed} address(es) could not be geocoded. They may have invalid addresses.`)
+        setInfoMessage(`${result.failed} address(es) could not be geocoded. They may have invalid addresses.`)
       } else if (result.errors.length > 0) {
-        alert(`Error: ${result.errors.join(", ")}`)
+        setErrorMessage(`Error: ${result.errors.join(", ")}`)
       }
 
       // Log detailed errors to console
@@ -146,7 +223,7 @@ export function AddressManager({ onCreateRoute }: AddressManagerProps) {
         console.log("Geocoding errors:", result.errors)
       }
     } catch (error) {
-      alert(`Error refreshing coordinates: ${error instanceof Error ? error.message : "Unknown error"}`)
+      setErrorMessage(`Error refreshing coordinates: ${error instanceof Error ? error.message : "Unknown error"}`)
     } finally {
       setIsRefreshing(false)
     }
@@ -172,7 +249,14 @@ export function AddressManager({ onCreateRoute }: AddressManagerProps) {
                   size="sm"
                   className="bg-yellow-600 hover:bg-yellow-700 text-white"
                 >
-                  {isRefreshing ? "Refreshing..." : "Refresh All Coordinates"}
+                  {isRefreshing ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Refreshing...
+                    </>
+                  ) : (
+                    "Refresh All Coordinates"
+                  )}
                 </Button>
                 <Button
                   onClick={() => setShowWarningBanner(false)}
@@ -203,8 +287,9 @@ export function AddressManager({ onCreateRoute }: AddressManagerProps) {
             value={newDescription}
             onChange={(e) => setNewDescription(e.target.value)}
           />
-          <Button onClick={handleAddSingle} disabled={!newAddress.trim()}>
-            Add Address
+          <Button onClick={handleAddSingle} disabled={!newAddress.trim() || isSingleAddLoading}>
+            {isSingleAddLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {isSingleAddLoading ? "Adding..." : "Add Address"}
           </Button>
         </CardContent>
       </Card>
@@ -222,6 +307,51 @@ export function AddressManager({ onCreateRoute }: AddressManagerProps) {
             <Button onClick={() => setShowBulkImport(true)} variant="outline">
               Import Multiple Addresses
             </Button>
+          ) : isBulkImporting && bulkProgress ? (
+            // Show progress indicator during bulk import
+            <div className="space-y-4">
+              <div className="text-center">
+                <p className="text-lg font-medium mb-2">Processing addresses...</p>
+                <div className="flex items-center justify-center gap-2 mb-4">
+                  <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                  <span className="text-sm text-muted-foreground">
+                    {bulkProgress.current} of {bulkProgress.total} processed
+                  </span>
+                </div>
+              </div>
+
+              {/* Progress bar */}
+              <div className="w-full bg-gray-200 rounded-full h-2.5">
+                <div 
+                  className="bg-primary h-2.5 rounded-full transition-all duration-300" 
+                  style={{ width: `${(bulkProgress.current / bulkProgress.total) * 100}%` }}
+                />
+              </div>
+
+              {/* Stats */}
+              <div className="flex gap-4 justify-center text-sm">
+                <div className="flex items-center gap-1">
+                  <CheckCircle2 className="h-4 w-4 text-green-600" />
+                  <span>{bulkProgress.successful} added</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <AlertCircle className="h-4 w-4 text-yellow-600" />
+                  <span>{bulkProgress.skipped} skipped</span>
+                </div>
+              </div>
+
+              {/* Current address being processed */}
+              {bulkProgress.currentAddress && (
+                <div className="p-3 bg-gray-50 rounded-lg">
+                  <p className="text-xs text-muted-foreground mb-1">Currently processing:</p>
+                  <p className="text-sm font-medium truncate">{bulkProgress.currentAddress}</p>
+                </div>
+              )}
+
+              <p className="text-xs text-center text-muted-foreground">
+                Addresses that fail geocoding after 3 retries will be skipped.
+              </p>
+            </div>
           ) : (
             <>
               <Textarea
@@ -340,6 +470,80 @@ export function AddressManager({ onCreateRoute }: AddressManagerProps) {
           </CardContent>
         </Card>
       )}
+
+      {/* Geocoding Failed Dialog */}
+      <Dialog open={showGeocodingFailDialog} onOpenChange={setShowGeocodingFailDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertCircle className="h-5 w-5 text-yellow-600" />
+              Geocoding Failed
+            </DialogTitle>
+            <DialogDescription>
+              Unable to find GPS coordinates for this address after 3 automatic retry attempts.
+            </DialogDescription>
+          </DialogHeader>
+          
+          {failedAddress && (
+            <div className="py-4">
+              <div className="p-3 bg-gray-100 rounded-md mb-4">
+                <p className="font-mono text-sm">{failedAddress.address}</p>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                The address can still be saved, but it won't appear on maps or in routes until coordinates are added. You can try again now or add it without coordinates.
+              </p>
+            </div>
+          )}
+
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button onClick={handleCancelGeocodingDialog} variant="outline">
+              Cancel
+            </Button>
+            <Button onClick={handleRetryGeocoding} variant="secondary">
+              Retry Now
+            </Button>
+            <Button onClick={handleAddWithoutGeocoding} variant="default">
+              Add Anyway
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Error Dialog */}
+      <Dialog open={errorMessage !== null} onOpenChange={(open) => !open && setErrorMessage(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertCircle className="h-5 w-5 text-red-600" />
+              Error
+            </DialogTitle>
+            <DialogDescription className="whitespace-pre-line">
+              {errorMessage}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button onClick={() => setErrorMessage(null)}>OK</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Info/Success Dialog */}
+      <Dialog open={infoMessage !== null} onOpenChange={(open) => !open && setInfoMessage(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CheckCircle2 className="h-5 w-5 text-green-600" />
+              Success
+            </DialogTitle>
+            <DialogDescription className="whitespace-pre-line">
+              {infoMessage}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button onClick={() => setInfoMessage(null)}>OK</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
