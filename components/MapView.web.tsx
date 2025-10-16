@@ -14,6 +14,7 @@ interface Stop {
 
 interface MapViewProps {
   stops: Stop[]
+  showRoute?: boolean
 }
 
 const API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY
@@ -37,7 +38,7 @@ const loadScript = (apiKey: string): Promise<void> => {
 
     const script = document.createElement("script")
     script.id = scriptId
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=marker`
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=marker,directions`
     script.async = true
     script.defer = true
     script.onload = () => resolve()
@@ -46,10 +47,12 @@ const loadScript = (apiKey: string): Promise<void> => {
   })
 }
 
-const MapView: React.FC<MapViewProps> = ({ stops }) => {
+const MapView: React.FC<MapViewProps> = ({ stops, showRoute }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<google.maps.Map | null>(null)
   const markersRef = useRef<google.maps.Marker[]>([])
+  const directionsRendererRef = useRef<google.maps.DirectionsRenderer | null>(null)
+  const directionsServiceRef = useRef<google.maps.DirectionsService | null>(null)
   const [isApiLoaded, setIsApiLoaded] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -124,6 +127,82 @@ const MapView: React.FC<MapViewProps> = ({ stops }) => {
     }, 100) // A small delay ensures the container has its final size.
 
   }, [stops, isApiLoaded])
+
+  // Effect to render route when showRoute is true
+  useEffect(() => {
+    const map = mapInstanceRef.current
+    
+    // Guard checks
+    if (!isApiLoaded || !map || !showRoute) {
+      // Clean up existing route if showRoute is false
+      if (directionsRendererRef.current) {
+        directionsRendererRef.current.setMap(null)
+        directionsRendererRef.current = null
+      }
+      return
+    }
+
+    // Filter stops with valid coordinates
+    const validStops = stops.filter((stop) => stop.coordinates && stop.coordinates.lat && stop.coordinates.lng)
+
+    // Need at least 2 stops to create a route
+    if (validStops.length < 2) {
+      return
+    }
+
+    // Initialize DirectionsService if not exists
+    if (!directionsServiceRef.current) {
+      directionsServiceRef.current = new window.google.maps.DirectionsService()
+    }
+
+    // Build DirectionsRequest
+    const origin = validStops[0].coordinates!
+    const destination = validStops[validStops.length - 1].coordinates!
+    const waypoints = validStops.slice(1, -1).map((stop) => ({
+      location: stop.coordinates!,
+      stopover: true,
+    }))
+
+    const request: google.maps.DirectionsRequest = {
+      origin: { lat: origin.lat, lng: origin.lng },
+      destination: { lat: destination.lat, lng: destination.lng },
+      waypoints,
+      travelMode: window.google.maps.TravelMode.DRIVING,
+      optimizeWaypoints: false, // Preserve user's stop order
+    }
+
+    // Call DirectionsService
+    directionsServiceRef.current.route(request, (result, status) => {
+      if (status === window.google.maps.DirectionsStatus.OK && result) {
+        // Clear existing DirectionsRenderer
+        if (directionsRendererRef.current) {
+          directionsRendererRef.current.setMap(null)
+        }
+
+        // Create new DirectionsRenderer
+        directionsRendererRef.current = new window.google.maps.DirectionsRenderer({
+          map,
+          directions: result,
+          suppressMarkers: true, // Keep our custom numbered markers
+          polylineOptions: {
+            strokeColor: '#4285F4', // Google blue
+            strokeWeight: 5,
+            strokeOpacity: 0.8,
+          },
+        })
+      } else {
+        // Log error but don't show error UI
+        console.error('DirectionsService failed with status:', status)
+      }
+    })
+
+    // Cleanup function
+    return () => {
+      if (directionsRendererRef.current) {
+        directionsRendererRef.current.setMap(null)
+      }
+    }
+  }, [stops, isApiLoaded, showRoute])
 
   if (error) {
     return (
