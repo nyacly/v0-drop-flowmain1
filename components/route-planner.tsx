@@ -163,11 +163,11 @@ export function RoutePlanner({ stops, onUpdateStatus, onReorder, onNavigateBack 
                       </Badge>
                     </div>
                     {stop.status === "pending" && (
-                      <div className="flex gap-2 mt-3">
+                      <div className="mt-3 flex flex-col gap-2 sm:flex-row">
                         <Button
                           size="sm"
                           onClick={() => onUpdateStatus(stop.id, "done")}
-                          className="w-full bg-green-600 hover:bg-green-700"
+                          className="flex-1 bg-green-600 hover:bg-green-700"
                         >
                           Done
                         </Button>
@@ -175,7 +175,7 @@ export function RoutePlanner({ stops, onUpdateStatus, onReorder, onNavigateBack 
                           size="sm"
                           variant="outline"
                           onClick={() => onUpdateStatus(stop.id, "skipped")}
-                          className="w-full"
+                          className="flex-1"
                         >
                           Skip
                         </Button>
