@@ -15,14 +15,12 @@ interface Stop {
 
 interface MapViewProps {
   stops: Stop[]
-  showRoute?: boolean
-  showMap?: boolean
 }
 
 const API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY
 const FALLBACK_CENTER: [number, number] = [-27.4705, 153.026]
 
-const MapView: React.FC<MapViewProps> = ({ stops, showRoute, showMap = true }) => {
+const MapView: React.FC<MapViewProps> = ({ stops }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<google.maps.Map | null>(null)
   const markersRef = useRef<google.maps.Marker[]>([])
@@ -31,6 +29,7 @@ const MapView: React.FC<MapViewProps> = ({ stops, showRoute, showMap = true }) =
   const [isApiLoaded, setIsApiLoaded] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [routeError, setRouteError] = useState<string | null>(null)
+  const [stopOrder, setStopOrder] = useState<number[]>([])
 
   const validStops = useMemo(
     () => stops.filter((stop) => stop.coordinates && stop.coordinates.lat && stop.coordinates.lng),
@@ -39,10 +38,6 @@ const MapView: React.FC<MapViewProps> = ({ stops, showRoute, showMap = true }) =
 
   // Effect to wait for Google Maps API (loaded globally by GoogleMapsScriptLoader)
   useEffect(() => {
-    if (!showMap) {
-      return
-    }
-
     if (!API_KEY) {
       setIsApiLoaded(false)
       setError(null)
@@ -75,11 +70,11 @@ const MapView: React.FC<MapViewProps> = ({ stops, showRoute, showMap = true }) =
       clearInterval(checkInterval)
       clearTimeout(timeout)
     }
-  }, [showMap])
+  }, [])
 
   // Effect to initialize the map instance once the API is loaded
   useEffect(() => {
-    if (!API_KEY || !showMap || !isApiLoaded || !mapContainerRef.current || mapInstanceRef.current) {
+    if (!API_KEY || !isApiLoaded || !mapContainerRef.current || mapInstanceRef.current) {
       return
     }
 
@@ -89,14 +84,18 @@ const MapView: React.FC<MapViewProps> = ({ stops, showRoute, showMap = true }) =
       mapId: "DROPFLOW_MAP_ID",
       disableDefaultUI: true,
     })
-  }, [isApiLoaded, showMap])
+  }, [isApiLoaded])
+
+  useEffect(() => {
+    setStopOrder(validStops.map((_, index) => index))
+  }, [validStops])
 
   // Effect to update markers and map bounds when stops change
   useEffect(() => {
     if (!API_KEY) return
 
     const map = mapInstanceRef.current
-    if (!map || !showMap) return
+    if (!map) return
 
     // Clear existing markers from the map and the ref
     markersRef.current.forEach((marker) => marker.setMap(null))
@@ -112,12 +111,13 @@ const MapView: React.FC<MapViewProps> = ({ stops, showRoute, showMap = true }) =
 
     validStops.forEach((stop, index) => {
       if (stop.coordinates) {
+        const orderPosition = stopOrder.indexOf(index)
         const marker = new window.google.maps.Marker({
           position: stop.coordinates,
           map,
           title: stop.address,
           label: {
-            text: `${index + 1}`,
+            text: `${orderPosition >= 0 ? orderPosition + 1 : index + 1}`,
             color: "white",
             fontWeight: "bold",
           },
@@ -136,9 +136,9 @@ const MapView: React.FC<MapViewProps> = ({ stops, showRoute, showMap = true }) =
       }
     }, 100) // A small delay ensures the container has its final size.
 
-  }, [stops, isApiLoaded, showMap])
+  }, [isApiLoaded, stopOrder, validStops])
 
-  // Effect to render route when showRoute is true
+  // Effect to render optimized route whenever stops change
   useEffect(() => {
     if (!API_KEY) {
       return
@@ -147,13 +147,13 @@ const MapView: React.FC<MapViewProps> = ({ stops, showRoute, showMap = true }) =
     const map = mapInstanceRef.current
 
     // Guard checks
-    if (!isApiLoaded || !map || !showRoute || !showMap) {
-      // Clean up existing route if showRoute is false
+    if (!isApiLoaded || !map) {
+      // Clean up any existing renderer if the map isn't ready
       if (directionsRendererRef.current) {
         directionsRendererRef.current.setMap(null)
         directionsRendererRef.current = null
       }
-      // Clear route error when showRoute is false
+      // Reset route error until we can attempt again
       setRouteError(null)
       return
     }
@@ -162,6 +162,10 @@ const MapView: React.FC<MapViewProps> = ({ stops, showRoute, showMap = true }) =
     // Need at least 2 stops to create a route
     if (validStops.length < 2) {
       setRouteError("Cannot display route: Your addresses are missing GPS coordinates. This usually happens when addresses were added before the Google Maps API key was configured. To fix: Go to Address Manager and click 'Refresh Coordinates' to re-geocode all addresses.")
+      if (directionsRendererRef.current) {
+        directionsRendererRef.current.setMap(null)
+        directionsRendererRef.current = null
+      }
       return
     }
 
@@ -176,7 +180,8 @@ const MapView: React.FC<MapViewProps> = ({ stops, showRoute, showMap = true }) =
     // Build DirectionsRequest
     const origin = validStops[0].coordinates!
     const destination = validStops[validStops.length - 1].coordinates!
-    const waypoints = validStops.slice(1, -1).map((stop) => ({
+    const intermediateStops = validStops.slice(1, -1)
+    const waypoints = intermediateStops.map((stop) => ({
       location: stop.coordinates!,
       stopover: true,
     }))
@@ -186,7 +191,7 @@ const MapView: React.FC<MapViewProps> = ({ stops, showRoute, showMap = true }) =
       destination: { lat: destination.lat, lng: destination.lng },
       waypoints,
       travelMode: window.google.maps.TravelMode.DRIVING,
-      optimizeWaypoints: false, // Preserve user's stop order
+      optimizeWaypoints: true,
     }
 
     // Call DirectionsService
@@ -210,6 +215,18 @@ const MapView: React.FC<MapViewProps> = ({ stops, showRoute, showMap = true }) =
         })
         // Clear any route errors on success
         setRouteError(null)
+
+        const waypointOrder = result.routes?.[0]?.waypoint_order
+        if (waypointOrder && intermediateStops.length > 0) {
+          const optimizedOrder = [
+            0,
+            ...waypointOrder.map((wpIndex) => wpIndex + 1),
+            validStops.length - 1,
+          ]
+          setStopOrder(optimizedOrder)
+        } else {
+          setStopOrder(validStops.map((_, index) => index))
+        }
       } else {
         // Set error message for DirectionsService failures
         setRouteError(`Unable to calculate route: ${status}. Please check your addresses and try again.`)
@@ -223,28 +240,7 @@ const MapView: React.FC<MapViewProps> = ({ stops, showRoute, showMap = true }) =
         directionsRendererRef.current.setMap(null)
       }
     }
-  }, [stops, isApiLoaded, showRoute, showMap])
-
-  useEffect(() => {
-    if (showMap) {
-      return
-    }
-
-    // Clean up all map-related resources when the map is hidden
-    markersRef.current.forEach((marker) => marker.setMap(null))
-    markersRef.current = []
-
-    if (directionsRendererRef.current) {
-      directionsRendererRef.current.setMap(null)
-      directionsRendererRef.current = null
-    }
-
-    directionsServiceRef.current = null
-
-    if (mapInstanceRef.current) {
-      mapInstanceRef.current = null
-    }
-  }, [showMap])
+  }, [isApiLoaded, validStops])
 
   useEffect(() => {
     return () => {
@@ -283,7 +279,7 @@ const MapView: React.FC<MapViewProps> = ({ stops, showRoute, showMap = true }) =
 
     const fallbackZoom = fallbackCoordinates.length <= 1 ? 14 : 11
 
-    const fallbackRouteError = showRoute && fallbackCoordinates.length < 2
+    const fallbackRouteError = fallbackCoordinates.length < 2
       ? "Cannot display route: Your addresses are missing GPS coordinates. This usually happens when addresses were added before the Google Maps API key was configured. To fix: Go to Address Manager and click 'Refresh Coordinates' to re-geocode all addresses."
       : null
 
