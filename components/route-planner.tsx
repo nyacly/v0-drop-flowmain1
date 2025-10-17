@@ -6,7 +6,6 @@ import { Badge } from "@/components/ui/badge"
 import MapView from "@/components/MapView.web"
 import { DeliveryProgress } from "@/components/delivery-progress"
 import { useAddresses } from "@/hooks/use-addresses"
-import { useState } from "react"
 
 // Mock data and types from app/page.tsx
 interface Stop {
@@ -28,13 +27,9 @@ interface RoutePlannerProps {
 export function RoutePlanner({ stops, onUpdateStatus, onReorder, onNavigateBack }: RoutePlannerProps) {
   const { routes } = useAddresses()
   const activeRoute = routes.find((route) => route.status === "active")
-  const [showMap, setShowMap] = useState(true)
-  const [showRoute, setShowRoute] = useState(false)
-
   // Filter pending stops for navigation
   const pendingStops = stops.filter((stop) => stop.status === "pending")
   const geocodedPendingStops = pendingStops.filter((stop) => stop.coordinates)
-  const canShowRouteToggle = geocodedPendingStops.length >= 2
   const canNavigateRoute = pendingStops.length >= 2
 
   const handleNavigateRoute = () => {
@@ -52,12 +47,18 @@ export function RoutePlanner({ stops, onUpdateStatus, onReorder, onNavigateBack 
     }
 
     // Build Google Maps URL with all pending stops
-    const coordinateStrings = pendingStops.map((stop) => {
-      return `${stop.coordinates!.lat},${stop.coordinates!.lng}`
-    })
+    const origin = pendingStops[0].coordinates!
+    const destination = pendingStops[pendingStops.length - 1].coordinates!
+    const waypointStops = pendingStops.slice(1, -1)
+    const waypointParam = waypointStops.length
+      ? `&waypoints=optimize:true|${waypointStops
+          .map((stop) => `${stop.coordinates!.lat},${stop.coordinates!.lng}`)
+          .join("|")}`
+      : ""
 
-    // Format: https://www.google.com/maps/dir/START_LAT,START_LNG/WAYPOINT1_LAT,WAYPOINT1_LNG/.../END_LAT,END_LNG
-    const googleMapsUrl = `https://www.google.com/maps/dir/${coordinateStrings.join("/")}`
+    const googleMapsUrl = encodeURI(
+      `https://www.google.com/maps/dir/?api=1&origin=${origin.lat},${origin.lng}&destination=${destination.lat},${destination.lng}${waypointParam}&travelmode=driving`,
+    )
 
     // Navigate to Google Maps in same tab
     window.location.href = googleMapsUrl
@@ -84,49 +85,16 @@ export function RoutePlanner({ stops, onUpdateStatus, onReorder, onNavigateBack 
             <div className="p-4 border-b">
               <div className="flex flex-col gap-2 sm:flex-row">
                 <Button
-                  onClick={() => {
-                    setShowMap((prev) => {
-                      const next = !prev
-                      if (!next) {
-                        setShowRoute(false)
-                      }
-                      return next
-                    })
-                  }}
-                  variant="outline"
-                  className="flex-1"
-                >
-                  {showMap ? "Hide Map" : "Show Map"}
-                </Button>
-                {canShowRouteToggle && showMap && (
-                  <Button
-                    onClick={() => setShowRoute(!showRoute)}
-                    variant="outline"
-                    className="flex-1"
-                  >
-                    {showRoute ? "Hide Route" : "Show Route"}
-                  </Button>
-                )}
-                <Button
                   onClick={handleNavigateRoute}
-                  className="flex-1"
+                  className="w-full"
                   variant={canNavigateRoute ? "default" : "outline"}
-                  disabled={!canNavigateRoute}
+                  disabled={!canNavigateRoute || geocodedPendingStops.length < pendingStops.length}
                 >
-                  🗺️ Navigate Full Route ({pendingStops.length} stops)
+                  🗺️ Navigate Optimized Route ({pendingStops.length} stops)
                 </Button>
               </div>
             </div>
-            {showMap ? (
-              <MapView stops={stops} showRoute={showRoute} showMap={showMap} />
-            ) : (
-              <div className="h-full flex items-center justify-center text-center px-6 text-muted-foreground">
-                <div>
-                  <p className="font-medium">Map hidden</p>
-                  <p className="text-sm">Use the Show Map toggle to visualize your stops and route.</p>
-                </div>
-              </div>
-            )}
+            <MapView stops={stops} />
           </Card>
         </div>
         <div className="lg:col-span-1">
