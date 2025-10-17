@@ -2,7 +2,6 @@
 
 import type React from "react"
 import { useEffect, useMemo, useRef, useState } from "react"
-import { GeoJson, Map as PigeonMap, Overlay, ZoomControl } from "pigeon-maps"
 
 // Stop interface based on what's passed from route-planner
 interface Stop {
@@ -18,7 +17,6 @@ interface MapViewProps {
 }
 
 const API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY
-const FALLBACK_CENTER: [number, number] = [-27.4705, 153.026]
 
 const MapView: React.FC<MapViewProps> = ({ stops }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null)
@@ -40,7 +38,9 @@ const MapView: React.FC<MapViewProps> = ({ stops }) => {
   useEffect(() => {
     if (!API_KEY) {
       setIsApiLoaded(false)
-      setError(null)
+      setError(
+        "Google Maps API key not configured. Please set EXPO_PUBLIC_GOOGLE_MAPS_API_KEY to display the map.",
+      )
       return
     }
 
@@ -266,88 +266,14 @@ const MapView: React.FC<MapViewProps> = ({ stops }) => {
   }
 
   if (!API_KEY) {
-    const fallbackCoordinates = validStops.map((stop) => [stop.coordinates!.lat, stop.coordinates!.lng] as [number, number])
-    const fallbackCenter = fallbackCoordinates.length
-      ? fallbackCoordinates.reduce(
-          (acc, [lat, lng]) => [acc[0] + lat / fallbackCoordinates.length, acc[1] + lng / fallbackCoordinates.length] as [
-            number,
-            number,
-          ],
-          [0, 0] as [number, number],
-        )
-      : FALLBACK_CENTER
-
-    const fallbackZoom = fallbackCoordinates.length <= 1 ? 14 : 11
-
-    const fallbackRouteError = fallbackCoordinates.length < 2
-      ? "Cannot display route: Your addresses are missing GPS coordinates. This usually happens when addresses were added before the Google Maps API key was configured. To fix: Go to Address Manager and click 'Refresh Coordinates' to re-geocode all addresses."
-      : null
-
-    const geoJsonData = fallbackCoordinates.length >= 2
-      ? {
-          type: "FeatureCollection",
-          features: [
-            {
-              type: "Feature",
-              geometry: {
-                type: "LineString",
-                coordinates: fallbackCoordinates.map(([lat, lng]) => [lng, lat]),
-              },
-              properties: {},
-            },
-          ],
-        }
-      : null
-
     return (
       <div className="relative w-full h-full rounded-lg overflow-hidden shadow-md bg-gray-200">
-        <PigeonMap
-          defaultCenter={fallbackCenter}
-          defaultZoom={fallbackZoom}
-          minZoom={3}
-          maxZoom={18}
-          style={{ width: "100%", height: "100%" }}
-          twoFingerDrag
-          metaWheelZoom
-          attributionPrefix={<span className="text-xs text-gray-500">Map data © OpenStreetMap contributors</span>}
-        >
-          <ZoomControl />
-          {geoJsonData ? (
-            <GeoJson
-              data={geoJsonData}
-              svgAttributes={{ stroke: "#4285F4", strokeWidth: 4, fill: "none" }}
-            />
-          ) : null}
-          {fallbackCoordinates.map(([lat, lng], index) => (
-            <Overlay key={`${lat}-${lng}-${index}`} anchor={[lat, lng]} offset={[24, 24]}>
-              <div className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-white bg-blue-600 text-lg font-semibold text-white shadow-lg">
-                {index + 1}
-              </div>
-            </Overlay>
-          ))}
-        </PigeonMap>
-
-        {fallbackRouteError ? (
-          <div className="absolute inset-0 flex items-center justify-center p-4 pointer-events-none">
-            <div className="pointer-events-auto max-w-md rounded-lg border-2 border-yellow-400 bg-yellow-50 p-6 text-left shadow-lg">
-              <div className="mb-2 flex items-center gap-2 text-yellow-800">
-                <span className="text-2xl">⚠️</span>
-                <h3 className="font-semibold">Route Display Issue</h3>
-              </div>
-              <p className="text-sm text-yellow-700">{fallbackRouteError}</p>
-            </div>
-          </div>
-        ) : null}
-
-        <div className="pointer-events-none absolute bottom-3 left-3 right-3 flex justify-center">
-          <div className="pointer-events-auto flex max-w-xl items-start gap-3 rounded-lg border border-blue-200 bg-white/90 p-4 text-sm text-blue-800 shadow">
-            <span className="mt-1 text-xl">ℹ️</span>
-            <div>
-              <p className="font-semibold">Running with OpenStreetMap fallback</p>
-              <p className="text-blue-700">
-                Add an EXPO_PUBLIC_GOOGLE_MAPS_API_KEY to enable Google Maps turn-by-turn routing. Until then, this fallback map shows straight-line connections between stops.
-              </p>
-            </div>
+        <div className="absolute inset-0 flex items-center justify-center p-6 text-center">
+          <div className="max-w-lg rounded-lg border border-yellow-300 bg-yellow-50 p-6 text-yellow-800 shadow">
+            <h3 className="text-lg font-semibold mb-2">Google Maps unavailable</h3>
+            <p className="text-sm">
+              Set the <code>EXPO_PUBLIC_GOOGLE_MAPS_API_KEY</code> environment variable to enable live Google Maps routing and visualisation.
+            </p>
           </div>
         </div>
       </div>
