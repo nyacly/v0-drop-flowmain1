@@ -16,7 +16,10 @@ interface MapViewProps {
   stops: Stop[]
 }
 
-const API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY
+const API_KEY =
+  process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ||
+  process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ||
+  process.env.GOOGLE_MAPS_API_KEY
 
 const MapView: React.FC<MapViewProps> = ({ stops }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null)
