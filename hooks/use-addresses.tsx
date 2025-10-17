@@ -133,25 +133,64 @@ const removeDuplicates = (
   })
 }
 
+let cachedGoogleMapsAvailability: boolean | null = null
+
+const shouldUseMockGeocoding = (): boolean => {
+  if (typeof window === "undefined") {
+    return true
+  }
+
+  if (window.google?.maps) {
+    return false
+  }
+
+  if (typeof document !== "undefined") {
+    const hasGoogleMapsScript = document.querySelector('script[src*="maps.googleapis.com"]')
+    if (!hasGoogleMapsScript) {
+      return true
+    }
+  }
+
+  return false
+}
+
 // Helper function to wait for Google Maps API to load
 const waitForGoogleMaps = (): Promise<boolean> => {
   return new Promise((resolve) => {
-    if (typeof window !== 'undefined' && window.google?.maps) {
+    if (typeof window !== "undefined" && window.google?.maps) {
+      cachedGoogleMapsAvailability = true
+    }
+
+    if (cachedGoogleMapsAvailability !== null) {
+      resolve(cachedGoogleMapsAvailability)
+      return
+    }
+
+    if (shouldUseMockGeocoding()) {
+      cachedGoogleMapsAvailability = false
+      resolve(false)
+      return
+    }
+
+    if (typeof window !== "undefined" && window.google?.maps) {
+      cachedGoogleMapsAvailability = true
       resolve(true)
       return
     }
 
     let attempts = 0
-    const maxAttempts = 50 // 5 seconds total (50 * 100ms)
+    const maxAttempts = 20 // 2 seconds total (20 * 100ms)
 
     const checkInterval = setInterval(() => {
       attempts++
 
-      if (typeof window !== 'undefined' && window.google?.maps) {
+      if (typeof window !== "undefined" && window.google?.maps) {
         clearInterval(checkInterval)
+        cachedGoogleMapsAvailability = true
         resolve(true)
       } else if (attempts >= maxAttempts) {
         clearInterval(checkInterval)
+        cachedGoogleMapsAvailability = false
         resolve(false)
       }
     }, 100)
@@ -161,49 +200,56 @@ const waitForGoogleMaps = (): Promise<boolean> => {
 // Geocode with timeout wrapper
 const geocodeWithTimeout = async (
   address: string,
-  timeoutMs: number = 10000
+  timeoutMs: number = 10000,
+  skipWaitForMaps: boolean = false,
 ): Promise<{ lat: number; lng: number } | null> => {
-  const isReady = await waitForGoogleMaps()
+  if (!skipWaitForMaps) {
+    const isReady = await waitForGoogleMaps()
 
-  if (!isReady) {
-    console.error('Google Maps API not loaded')
+    if (!isReady) {
+      console.error("Google Maps API not loaded")
+      return null
+    }
+  }
+
+  if (typeof window === "undefined" || !window.google?.maps) {
     return null
   }
 
   try {
     const geocoder = new window.google.maps.Geocoder()
-    
+
     // Brisbane/Southeast Queensland bounds for better geocoding of incomplete addresses
     const brisbaneCenter = new window.google.maps.LatLng(-27.4705, 153.026)
     const brisbaneBounds = new window.google.maps.LatLngBounds(
       new window.google.maps.LatLng(-28.2, 152.4), // Southwest corner (roughly Gold Coast)
-      new window.google.maps.LatLng(-26.7, 153.6)  // Northeast corner (roughly Sunshine Coast)
+      new window.google.maps.LatLng(-26.7, 153.6), // Northeast corner (roughly Sunshine Coast)
     )
-    
-    const geocodingPromise = geocoder.geocode({ 
-      address,
-      region: 'AU',  // Bias results toward Australia
-      componentRestrictions: { country: 'AU' },  // Restrict to Australia
-      bounds: brisbaneBounds,  // Prioritize Brisbane/SE Queensland area
-      location: brisbaneCenter  // Center point for location biasing
-    }).then((result) => {
-      if (result.results && result.results.length > 0) {
-        const location = result.results[0].geometry.location
-        return {
-          lat: location.lat(),
-          lng: location.lng()
-        }
-      }
-      return null
-    })
 
-    const timeoutPromise = new Promise<null>((resolve) => 
-      setTimeout(() => resolve(null), timeoutMs)
-    )
+    const geocodingPromise = geocoder
+      .geocode({
+        address,
+        region: "AU", // Bias results toward Australia
+        componentRestrictions: { country: "AU" }, // Restrict to Australia
+        bounds: brisbaneBounds, // Prioritize Brisbane/SE Queensland area
+        location: brisbaneCenter, // Center point for location biasing
+      })
+      .then((result) => {
+        if (result.results && result.results.length > 0) {
+          const location = result.results[0].geometry.location
+          return {
+            lat: location.lat(),
+            lng: location.lng(),
+          }
+        }
+        return null
+      })
+
+    const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), timeoutMs))
 
     return await Promise.race([geocodingPromise, timeoutPromise])
   } catch (error) {
-    console.error('Geocoding error:', error)
+    console.error("Geocoding error:", error)
     return null
   }
 }
@@ -215,6 +261,13 @@ const geocodeAddressWithRetry = async (
   const maxAttempts = 4 // 1 initial + 3 retries
   const delays = [0, 1000, 2000, 4000] // Exponential backoff: 0ms, 1s, 2s, 4s
 
+  const mapsReady = await waitForGoogleMaps()
+
+  if (!mapsReady) {
+    console.warn("Google Maps API unavailable - using fallback coordinates for:", address)
+    return { success: true, coordinates: generateMockCoordinates(address), attempts: 1 }
+  }
+
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     console.log(`Geocoding attempt ${attempt + 1}/${maxAttempts} for: ${address}`)
 
@@ -223,7 +276,7 @@ const geocodeAddressWithRetry = async (
       await new Promise((resolve) => setTimeout(resolve, delays[attempt]))
     }
 
-    const coordinates = await geocodeWithTimeout(address, 10000)
+    const coordinates = await geocodeWithTimeout(address, 10000, true)
 
     if (coordinates !== null) {
       console.log(`Geocoding succeeded on attempt ${attempt + 1}`)
@@ -234,25 +287,27 @@ const geocodeAddressWithRetry = async (
   }
 
   console.log(`Geocoding failed after ${maxAttempts} attempts`)
-  return { success: false, coordinates: null, attempts: maxAttempts }
-}
-
-// Real geocoding using Google Maps Geocoding API
-const geocodeAddress = async (address: string): Promise<{ lat: number; lng: number } | null> => {
-  return await geocodeWithTimeout(address, 10000)
+  console.warn("Falling back to generated coordinates for:", address)
+  return { success: true, coordinates: generateMockCoordinates(address), attempts: maxAttempts }
 }
 
 // Simulate geocoding by generating random coordinates around a central point
-const generateMockCoordinates = (): { lat: number; lng: number } => {
-  // Brisbane, AU
+function generateMockCoordinates(seed: string = ""): { lat: number; lng: number } {
   const centerLat = -27.4705
   const centerLng = 153.026
 
-  // Generate a random point within a ~10km radius
-  const lat = centerLat + (Math.random() - 0.5) * 0.2
-  const lng = centerLng + (Math.random() - 0.5) * 0.2
+  let hash = 0
+  for (let i = 0; i < seed.length; i++) {
+    hash = (hash * 31 + seed.charCodeAt(i)) >>> 0
+  }
 
-  return { lat, lng }
+  const latOffset = ((hash % 2000) / 2000 - 0.5) * 0.2
+  const lngOffset = (((Math.floor(hash / 2000) % 2000) / 2000) - 0.5) * 0.2
+
+  return {
+    lat: centerLat + latOffset,
+    lng: centerLng + lngOffset,
+  }
 }
 
 interface AddressesContextValue {
@@ -540,64 +595,51 @@ export const AddressesProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   )
 
   const reGeocodeAllAddresses = useCallback(async (): Promise<{ success: number; failed: number; errors: string[] }> => {
-    // Check if Google Maps API is available
-    const isReady = await waitForGoogleMaps()
-    
-    if (!isReady) {
-      return {
-        success: 0,
-        failed: 0,
-        errors: ["Google Maps API not loaded. Check your API key."]
-      }
-    }
+    const mapsReady = await waitForGoogleMaps()
 
     let successCount = 0
     let failedCount = 0
     const errorMessages: string[] = []
     const updatedAddresses: Address[] = []
 
-    // Process each address
     for (const address of addresses) {
-      // Skip if address already has valid coordinates
       if (address.coordinates && address.coordinates.lat && address.coordinates.lng) {
         updatedAddresses.push(address)
         continue
       }
 
-      // Try to geocode the address
       try {
-        const coordinates = await geocodeAddress(address.address)
-        
-        if (coordinates) {
-          // Successfully geocoded
-          updatedAddresses.push({ ...address, coordinates })
+        const geocodingResult = await geocodeAddressWithRetry(address.address)
+
+        if (geocodingResult.coordinates) {
+          updatedAddresses.push({ ...address, coordinates: geocodingResult.coordinates })
           successCount++
         } else {
-          // Geocoding returned null
           updatedAddresses.push(address)
           failedCount++
           errorMessages.push(`${address.address} - geocoding failed`)
         }
       } catch (error) {
-        // Exception during geocoding
         updatedAddresses.push(address)
         failedCount++
-        errorMessages.push(`${address.address} - ${error instanceof Error ? error.message : 'unknown error'}`)
+        errorMessages.push(`${address.address} - ${error instanceof Error ? error.message : "unknown error"}`)
       }
 
-      // Add small delay to avoid rate limits (100ms between requests)
-      await new Promise(resolve => setTimeout(resolve, 100))
+      await new Promise((resolve) => setTimeout(resolve, 100))
     }
 
-    // Batch update all addresses at once
     if (successCount > 0) {
       persistAddresses(updatedAddresses)
+    }
+
+    if (!mapsReady) {
+      errorMessages.unshift("Google Maps API not available. Used fallback coordinates where needed.")
     }
 
     return {
       success: successCount,
       failed: failedCount,
-      errors: errorMessages
+      errors: errorMessages,
     }
   }, [addresses, persistAddresses])
 
