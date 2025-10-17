@@ -90,7 +90,7 @@ export function RoutePlanner({ stops, onUpdateStatus, onReorder, onNavigateBack 
                   variant={canNavigateRoute ? "default" : "outline"}
                   disabled={!canNavigateRoute || geocodedPendingStops.length < pendingStops.length}
                 >
-                  🗺️ Navigate Optimized Route ({pendingStops.length} stops)
+                  🗺️ Launch Navigation on Google Maps ({pendingStops.length} stops)
                 </Button>
               </div>
             </div>
