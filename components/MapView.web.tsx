@@ -15,11 +15,12 @@ interface Stop {
 interface MapViewProps {
   stops: Stop[]
   showRoute?: boolean
+  showMap?: boolean
 }
 
 const API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY
 
-const MapView: React.FC<MapViewProps> = ({ stops, showRoute }) => {
+const MapView: React.FC<MapViewProps> = ({ stops, showRoute, showMap = true }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<google.maps.Map | null>(null)
   const markersRef = useRef<google.maps.Marker[]>([])
@@ -31,11 +32,15 @@ const MapView: React.FC<MapViewProps> = ({ stops, showRoute }) => {
 
   // Effect to wait for Google Maps API (loaded globally by GoogleMapsScriptLoader)
   useEffect(() => {
+    if (!showMap) {
+      return
+    }
+
     if (!API_KEY) {
       setError("Google Maps API key is missing. Please configure it in your environment variables.")
       return
     }
-    
+
     // Check if already loaded
     if (window.google?.maps) {
       setIsApiLoaded(true)
@@ -62,11 +67,11 @@ const MapView: React.FC<MapViewProps> = ({ stops, showRoute }) => {
       clearInterval(checkInterval)
       clearTimeout(timeout)
     }
-  }, [])
+  }, [showMap])
 
   // Effect to initialize the map instance once the API is loaded
   useEffect(() => {
-    if (!isApiLoaded || !mapContainerRef.current || mapInstanceRef.current) {
+    if (!showMap || !isApiLoaded || !mapContainerRef.current || mapInstanceRef.current) {
       return
     }
 
@@ -76,12 +81,12 @@ const MapView: React.FC<MapViewProps> = ({ stops, showRoute }) => {
       mapId: "DROPFLOW_MAP_ID",
       disableDefaultUI: true,
     })
-  }, [isApiLoaded])
+  }, [isApiLoaded, showMap])
 
   // Effect to update markers and map bounds when stops change
   useEffect(() => {
     const map = mapInstanceRef.current
-    if (!map) return
+    if (!map || !showMap) return
 
     // Clear existing markers from the map and the ref
     markersRef.current.forEach((marker) => marker.setMap(null))
@@ -123,14 +128,14 @@ const MapView: React.FC<MapViewProps> = ({ stops, showRoute }) => {
       }
     }, 100) // A small delay ensures the container has its final size.
 
-  }, [stops, isApiLoaded])
+  }, [stops, isApiLoaded, showMap])
 
   // Effect to render route when showRoute is true
   useEffect(() => {
     const map = mapInstanceRef.current
-    
+
     // Guard checks
-    if (!isApiLoaded || !map || !showRoute) {
+    if (!isApiLoaded || !map || !showRoute || !showMap) {
       // Clean up existing route if showRoute is false
       if (directionsRendererRef.current) {
         directionsRendererRef.current.setMap(null)
@@ -208,7 +213,43 @@ const MapView: React.FC<MapViewProps> = ({ stops, showRoute }) => {
         directionsRendererRef.current.setMap(null)
       }
     }
-  }, [stops, isApiLoaded, showRoute])
+  }, [stops, isApiLoaded, showRoute, showMap])
+
+  useEffect(() => {
+    if (showMap) {
+      return
+    }
+
+    // Clean up all map-related resources when the map is hidden
+    markersRef.current.forEach((marker) => marker.setMap(null))
+    markersRef.current = []
+
+    if (directionsRendererRef.current) {
+      directionsRendererRef.current.setMap(null)
+      directionsRendererRef.current = null
+    }
+
+    directionsServiceRef.current = null
+
+    if (mapInstanceRef.current) {
+      mapInstanceRef.current = null
+    }
+  }, [showMap])
+
+  useEffect(() => {
+    return () => {
+      markersRef.current.forEach((marker) => marker.setMap(null))
+      markersRef.current = []
+
+      if (directionsRendererRef.current) {
+        directionsRendererRef.current.setMap(null)
+        directionsRendererRef.current = null
+      }
+
+      directionsServiceRef.current = null
+      mapInstanceRef.current = null
+    }
+  }, [])
 
   if (error) {
     return (

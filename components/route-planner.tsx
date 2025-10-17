@@ -28,14 +28,18 @@ interface RoutePlannerProps {
 export function RoutePlanner({ stops, onUpdateStatus, onReorder, onNavigateBack }: RoutePlannerProps) {
   const { routes } = useAddresses()
   const activeRoute = routes.find((route) => route.status === "active")
+  const [showMap, setShowMap] = useState(true)
   const [showRoute, setShowRoute] = useState(false)
 
   // Filter pending stops for navigation
   const pendingStops = stops.filter((stop) => stop.status === "pending")
+  const geocodedPendingStops = pendingStops.filter((stop) => stop.coordinates)
+  const canShowRouteToggle = geocodedPendingStops.length >= 2
+  const canNavigateRoute = pendingStops.length >= 2
 
   const handleNavigateRoute = () => {
     // Check if we have at least 2 pending stops
-    if (pendingStops.length < 2) {
+    if (!canNavigateRoute) {
       window.alert("Need at least 2 stops to navigate")
       return
     }
@@ -77,9 +81,24 @@ export function RoutePlanner({ stops, onUpdateStatus, onReorder, onNavigateBack 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2">
           <Card className="h-[600px]">
-            {pendingStops.length >= 2 && (
-              <div className="p-4 border-b">
-                <div className="flex flex-col gap-2 sm:flex-row">
+            <div className="p-4 border-b">
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Button
+                  onClick={() => {
+                    setShowMap((prev) => {
+                      const next = !prev
+                      if (!next) {
+                        setShowRoute(false)
+                      }
+                      return next
+                    })
+                  }}
+                  variant="outline"
+                  className="flex-1"
+                >
+                  {showMap ? "Hide Map" : "Show Map"}
+                </Button>
+                {canShowRouteToggle && showMap && (
                   <Button
                     onClick={() => setShowRoute(!showRoute)}
                     variant="outline"
@@ -87,13 +106,27 @@ export function RoutePlanner({ stops, onUpdateStatus, onReorder, onNavigateBack 
                   >
                     {showRoute ? "Hide Route" : "Show Route"}
                   </Button>
-                  <Button onClick={handleNavigateRoute} className="flex-1">
-                    🗺️ Navigate Full Route ({pendingStops.length} stops)
-                  </Button>
+                )}
+                <Button
+                  onClick={handleNavigateRoute}
+                  className="flex-1"
+                  variant={canNavigateRoute ? "default" : "outline"}
+                  disabled={!canNavigateRoute}
+                >
+                  🗺️ Navigate Full Route ({pendingStops.length} stops)
+                </Button>
+              </div>
+            </div>
+            {showMap ? (
+              <MapView stops={stops} showRoute={showRoute} showMap={showMap} />
+            ) : (
+              <div className="h-full flex items-center justify-center text-center px-6 text-muted-foreground">
+                <div>
+                  <p className="font-medium">Map hidden</p>
+                  <p className="text-sm">Use the Show Map toggle to visualize your stops and route.</p>
                 </div>
               </div>
             )}
-            <MapView stops={stops} showRoute={showRoute} />
           </Card>
         </div>
         <div className="lg:col-span-1">
@@ -103,7 +136,7 @@ export function RoutePlanner({ stops, onUpdateStatus, onReorder, onNavigateBack 
             </CardHeader>
             <CardContent>
               {/* This is a simplified view. A real implementation would have more interactive elements. */}
-                  <div className="space-y-3">
+              <div className="space-y-3">
                 {stops.map((stop, index) => (
                   <div
                     key={stop.id}
