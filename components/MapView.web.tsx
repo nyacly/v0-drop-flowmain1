@@ -25,15 +25,22 @@ const MapView: React.FC<MapViewProps> = ({ stops }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<google.maps.Map | null>(null)
   const markersRef = useRef<google.maps.Marker[]>([])
+  const currentLocationMarkerRef = useRef<google.maps.Marker | null>(null)
   const directionsRendererRef = useRef<google.maps.DirectionsRenderer | null>(null)
   const directionsServiceRef = useRef<google.maps.DirectionsService | null>(null)
+  const trafficLayerRef = useRef<google.maps.TrafficLayer | null>(null)
   const [isApiLoaded, setIsApiLoaded] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [routeError, setRouteError] = useState<string | null>(null)
   const [stopOrder, setStopOrder] = useState<number[]>([])
+  const [currentLocation, setCurrentLocation] = useState<{ lat: number; lng: number } | null>(null)
 
-  const validStops = useMemo(
-    () => stops.filter((stop) => stop.coordinates && stop.coordinates.lat && stop.coordinates.lng),
+  const pendingStops = useMemo(
+    () =>
+      stops.filter(
+        (stop) =>
+          stop.status === "pending" && stop.coordinates && stop.coordinates.lat && stop.coordinates.lng,
+      ),
     [stops],
   )
 
@@ -90,8 +97,28 @@ const MapView: React.FC<MapViewProps> = ({ stops }) => {
   }, [isApiLoaded])
 
   useEffect(() => {
-    setStopOrder(validStops.map((_, index) => index))
-  }, [validStops])
+    setStopOrder(pendingStops.map((_, index) => index))
+  }, [pendingStops])
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !("geolocation" in navigator)) {
+      return
+    }
+
+    const watchId = navigator.geolocation.watchPosition(
+      (position) => {
+        setCurrentLocation({ lat: position.coords.latitude, lng: position.coords.longitude })
+      },
+      (geoError) => {
+        console.warn("Unable to retrieve current position", geoError)
+      },
+      { enableHighAccuracy: true },
+    )
+
+    return () => {
+      navigator.geolocation.clearWatch(watchId)
+    }
+  }, [])
 
   // Effect to update markers and map bounds when stops change
   useEffect(() => {
@@ -104,15 +131,38 @@ const MapView: React.FC<MapViewProps> = ({ stops }) => {
     markersRef.current.forEach((marker) => marker.setMap(null))
     markersRef.current = []
 
-    if (validStops.length === 0) {
-      map.setCenter({ lat: -27.4705, lng: 153.026 })
-      map.setZoom(12)
+    if (currentLocationMarkerRef.current) {
+      currentLocationMarkerRef.current.setMap(null)
+      currentLocationMarkerRef.current = null
+    }
+
+    if (pendingStops.length === 0) {
+      const fallbackCenter = currentLocation || { lat: -27.4705, lng: 153.026 }
+      map.setCenter(fallbackCenter)
+      map.setZoom(currentLocation ? 14 : 12)
+
+      if (currentLocation) {
+        currentLocationMarkerRef.current = new window.google.maps.Marker({
+          position: currentLocation,
+          map,
+          title: "Current Location",
+          icon: {
+            path: window.google.maps.SymbolPath.CIRCLE,
+            scale: 8,
+            fillColor: "#34A853",
+            fillOpacity: 1,
+            strokeColor: "white",
+            strokeWeight: 2,
+          },
+        })
+      }
+
       return
     }
 
     const bounds = new window.google.maps.LatLngBounds()
 
-    validStops.forEach((stop, index) => {
+    pendingStops.forEach((stop, index) => {
       if (stop.coordinates) {
         const orderPosition = stopOrder.indexOf(index)
         const marker = new window.google.maps.Marker({
@@ -130,16 +180,33 @@ const MapView: React.FC<MapViewProps> = ({ stops }) => {
       }
     })
 
+    if (currentLocation) {
+      currentLocationMarkerRef.current = new window.google.maps.Marker({
+        position: currentLocation,
+        map,
+        title: "Current Location",
+        icon: {
+          path: window.google.maps.SymbolPath.CIRCLE,
+          scale: 8,
+          fillColor: "#34A853",
+          fillOpacity: 1,
+          strokeColor: "white",
+          strokeWeight: 2,
+        },
+      })
+      bounds.extend(currentLocation)
+    }
+
     // This is the key fix for the "blue map" issue.
     // We trigger a resize event and then fit the bounds.
     setTimeout(() => {
       google.maps.event.trigger(map, "resize")
-      if (validStops.length > 0) {
+      if (pendingStops.length > 0 || currentLocation) {
         map.fitBounds(bounds, 100) // 100px padding
       }
     }, 100) // A small delay ensures the container has its final size.
 
-  }, [isApiLoaded, stopOrder, validStops])
+  }, [isApiLoaded, stopOrder, pendingStops, currentLocation])
 
   // Effect to render optimized route whenever stops change
   useEffect(() => {
@@ -162,9 +229,19 @@ const MapView: React.FC<MapViewProps> = ({ stops }) => {
     }
 
     // Filter stops with valid coordinates
-    // Need at least 2 stops to create a route
-    if (validStops.length < 2) {
-      setRouteError("Cannot display route: Your addresses are missing GPS coordinates. This usually happens when addresses were added before the Google Maps API key was configured. To fix: Go to Address Manager and click 'Refresh Coordinates' to re-geocode all addresses.")
+    if (pendingStops.length === 0) {
+      setRouteError("All pending deliveries have been completed or skipped. No route to display.")
+      if (directionsRendererRef.current) {
+        directionsRendererRef.current.setMap(null)
+        directionsRendererRef.current = null
+      }
+      return
+    }
+
+    if (pendingStops.length === 1 && !currentLocation) {
+      setRouteError(
+        "Cannot display route: Need your current location or at least two pending stops with GPS coordinates.",
+      )
       if (directionsRendererRef.current) {
         directionsRendererRef.current.setMap(null)
         directionsRendererRef.current = null
@@ -181,9 +258,22 @@ const MapView: React.FC<MapViewProps> = ({ stops }) => {
     }
 
     // Build DirectionsRequest
-    const origin = validStops[0].coordinates!
-    const destination = validStops[validStops.length - 1].coordinates!
-    const intermediateStops = validStops.slice(1, -1)
+    const origin = currentLocation || pendingStops[0].coordinates!
+    const destination =
+      pendingStops.length === 1 ? pendingStops[0].coordinates! : pendingStops[pendingStops.length - 1].coordinates!
+
+    const intermediateStops = (() => {
+      if (pendingStops.length <= 1) {
+        return []
+      }
+
+      if (currentLocation) {
+        return pendingStops.slice(0, -1)
+      }
+
+      return pendingStops.slice(1, -1)
+    })()
+
     const waypoints = intermediateStops.map((stop) => ({
       location: stop.coordinates!,
       stopover: true,
@@ -194,7 +284,7 @@ const MapView: React.FC<MapViewProps> = ({ stops }) => {
       destination: { lat: destination.lat, lng: destination.lng },
       waypoints,
       travelMode: window.google.maps.TravelMode.DRIVING,
-      optimizeWaypoints: true,
+      optimizeWaypoints: waypoints.length > 0,
     }
 
     // Call DirectionsService
@@ -221,14 +311,22 @@ const MapView: React.FC<MapViewProps> = ({ stops }) => {
 
         const waypointOrder = result.routes?.[0]?.waypoint_order
         if (waypointOrder && intermediateStops.length > 0) {
-          const optimizedOrder = [
-            0,
-            ...waypointOrder.map((wpIndex) => wpIndex + 1),
-            validStops.length - 1,
-          ]
-          setStopOrder(optimizedOrder)
+          if (currentLocation) {
+            const optimizedOrder = [
+              ...waypointOrder.map((wpIndex) => wpIndex),
+              pendingStops.length === 1 ? 0 : pendingStops.length - 1,
+            ]
+            setStopOrder(Array.from(new Set(optimizedOrder)))
+          } else {
+            const optimizedOrder = [
+              0,
+              ...waypointOrder.map((wpIndex) => wpIndex + 1),
+              pendingStops.length - 1,
+            ]
+            setStopOrder(Array.from(new Set(optimizedOrder)))
+          }
         } else {
-          setStopOrder(validStops.map((_, index) => index))
+          setStopOrder(pendingStops.map((_, index) => index))
         }
       } else {
         // Set error message for DirectionsService failures
@@ -243,12 +341,38 @@ const MapView: React.FC<MapViewProps> = ({ stops }) => {
         directionsRendererRef.current.setMap(null)
       }
     }
-  }, [isApiLoaded, validStops])
+  }, [isApiLoaded, pendingStops, currentLocation])
+
+  useEffect(() => {
+    if (!API_KEY || !isApiLoaded) {
+      return
+    }
+
+    const map = mapInstanceRef.current
+    if (!map) return
+
+    if (!trafficLayerRef.current) {
+      trafficLayerRef.current = new window.google.maps.TrafficLayer()
+    }
+
+    trafficLayerRef.current.setMap(map)
+
+    return () => {
+      if (trafficLayerRef.current) {
+        trafficLayerRef.current.setMap(null)
+      }
+    }
+  }, [isApiLoaded])
 
   useEffect(() => {
     return () => {
       markersRef.current.forEach((marker) => marker.setMap(null))
       markersRef.current = []
+
+      if (currentLocationMarkerRef.current) {
+        currentLocationMarkerRef.current.setMap(null)
+        currentLocationMarkerRef.current = null
+      }
 
       if (directionsRendererRef.current) {
         directionsRendererRef.current.setMap(null)
@@ -257,6 +381,10 @@ const MapView: React.FC<MapViewProps> = ({ stops }) => {
 
       directionsServiceRef.current = null
       mapInstanceRef.current = null
+      if (trafficLayerRef.current) {
+        trafficLayerRef.current.setMap(null)
+        trafficLayerRef.current = null
+      }
     }
   }, [])
 
