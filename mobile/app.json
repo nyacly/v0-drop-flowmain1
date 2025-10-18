@@ -1,0 +1,29 @@
+{
+  "expo": {
+    "name": "DropFlow Mobile",
+    "slug": "dropflow-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "dropflow",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "backgroundColor": "#ffffff"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.dropflow.app"
+    },
+    "android": {
+      "package": "com.dropflow.app",
+      "versionCode": 1
+    },
+    "web": {
+      "output": "static"
+    },
+    "plugins": ["expo-router"],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
